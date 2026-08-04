@@ -1,0 +1,15 @@
+target/
+node_modules/
+dist/
+.env
+logs/
+.run/
+.tools/
+playwright-report/
+test-results/
+*.log
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

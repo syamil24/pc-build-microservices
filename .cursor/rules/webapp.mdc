@@ -1,0 +1,14 @@
+---
+description: PC builder webapp conventions
+globs: "webapp/**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+# Webapp pattern
+
+- React function components, one component per file, CSS in `src/styles.css` using the existing tokens.
+- All HTTP goes through `src/api.ts`. Do not call `fetch` from a page.
+- Prices arrive as `priceCents`. Format them with `formatMyr`.
+- The PC builder never computes compatibility locally. It posts the selection to `/api/catalog/builder/quote`.
+- Keep the gaming theme: dark graphite panels, lime and cyan accents, Chakra Petch headings.
+- Do not add a second UI kit. Compose the panels, pills, and buttons that already exist.

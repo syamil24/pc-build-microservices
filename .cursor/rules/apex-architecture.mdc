@@ -1,0 +1,17 @@
+---
+description: Apex Build service boundaries, packages, and runtime rules
+alwaysApply: true
+---
+
+# Apex Build architecture
+
+- One bounded context per Spring Boot service. Do not query another service's database.
+- Packages: `config`, `domain`, `repo`, `service`, `web`, `client`, `messaging`.
+- Share contracts through `apex-common` and HTTP/Kafka. Do not depend on another service's jar.
+- Money is integer minor units (`priceCents`, MYR). Never use floating point for prices.
+- Secrets come from the environment (`.env`). No passwords, JWT secrets, or CHIP keys in source.
+- Outbound HTTP goes through `ProtectedCall` (Resilience4j). Cache reads must still work when Redis is down.
+- Service-to-service calls use the Eureka name (`http://inventory-service`) and header `X-Internal-Token`.
+- The gateway strips inbound `X-Internal-Token`. Do not trust that header from browsers.
+- Log lines already include `traceId` and `spanId`. Propagate them; do not invent a second correlation id.
+- New tables ship as Flyway `V{n}__name.sql` in that service only.

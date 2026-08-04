@@ -1,0 +1,23 @@
+---
+description: Java conventions shared by every Apex Build service
+globs: "**/*.java"
+alwaysApply: false
+---
+
+# Java service pattern
+
+- Java 21. Constructor injection. No Lombok, field injection, or `javax.*` imports.
+- Controllers return `ResponseEntity<ApiResponse<T>>` and stay thin. Business rules live in `service` or `domain`.
+- Request bodies are validated records. Entities stay package-private to JPA and are never returned directly.
+- Throw `ApexException` with an `ErrorCode`. Do not catch and drop exceptions.
+- Repositories use explicit `@Query` when the method name would hide a join or a lock.
+- Kafka payloads are JSON objects inside `EventEnvelope`. Consumers are idempotent.
+- Tests are plain JUnit for domain rules. Do not boot PostgreSQL, Kafka, or Eureka in unit tests.
+
+```java
+// GOOD
+return ResponseEntity.ok(ApiResponse.ok(mapper.toResponse(order)));
+
+// BAD
+return orderRepository.findAll();
+```
