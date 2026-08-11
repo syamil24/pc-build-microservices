@@ -1,0 +1,105 @@
+server:
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:20}
+    accept-count: 20
+    max-connections: 200
+
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: 1
+    listener:
+      missing-topics-fatal: false
+  cloud:
+    loadbalancer:
+      eager-load:
+        clients: inventory-service,payment-service,user-service,cache-service,order-service,shipping-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 8
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 8
+    lease-expiration-duration-in-seconds: 20
+    instance-id: ${INSTANCE_ID:${spring.application.name}:${server.port}}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      export:
+        enabled: ${ZIPKIN_ENABLED:false}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [trace=%X{traceId:-}] [span=%X{spanId:-}] %logger{36} - %msg%n"
+  level:
+    com.apexbuild: INFO
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 8
+        minimumNumberOfCalls: 4
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        ignoreExceptions:
+          - com.apexbuild.common.error.RemoteClientException
+    instances:
+      inventory:
+        baseConfig: default
+      payment:
+        baseConfig: default
+      user:
+        baseConfig: default
+      cache:
+        baseConfig: default
+      shipping:
+        baseConfig: default
+      chip:
+        baseConfig: default
+
+apex:
+  jwt-secret: ${JWT_SECRET:}
+  internal-token: ${INTERNAL_SERVICE_TOKEN:}
+  demo: ${APEX_DEMO:true}
+  instance-id: ${INSTANCE_ID:${spring.application.name}:${server.port}}
+  access-token-minutes: ${ACCESS_TOKEN_MINUTES:20}
+  refresh-token-days: ${REFRESH_TOKEN_DAYS:7}
+  cache:
+    client-enabled: true
