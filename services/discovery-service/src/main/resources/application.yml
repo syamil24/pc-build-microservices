@@ -1,0 +1,19 @@
+spring:
+  config:
+    import: classpath:apex-defaults.yml
+  application:
+    name: discovery-service
+
+server:
+  port: ${SERVER_PORT:8761}
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 5000
+
+apex:
+  platform-poll-ms: ${PLATFORM_POLL_MS:10000}

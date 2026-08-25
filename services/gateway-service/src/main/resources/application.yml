@@ -1,0 +1,57 @@
+spring:
+  config:
+    import: classpath:apex-defaults.yml
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns: "${WEBAPP_ORIGIN:http://localhost:5173}"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 15s
+      routes:
+        - id: auth
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+        - id: users
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+        - id: catalog
+          uri: lb://inventory-service
+          predicates:
+            - Path=/api/catalog/**
+        - id: inventory
+          uri: lb://inventory-service
+          predicates:
+            - Path=/api/inventory/**
+        - id: cart
+          uri: lb://order-service
+          predicates:
+            - Path=/api/cart/**
+        - id: orders
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**
+        - id: payments
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/payments/**
+        - id: shipments
+          uri: lb://shipping-service
+          predicates:
+            - Path=/api/shipments/**
+        - id: platform
+          uri: http://localhost:8761
+          predicates:
+            - Path=/api/platform/**
+
+server:
+  port: ${SERVER_PORT:8080}
