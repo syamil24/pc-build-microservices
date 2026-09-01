@@ -1,0 +1,26 @@
+spring:
+  config:
+    import: classpath:apex-defaults.yml
+  application:
+    name: auth-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/apex_auth
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:3}
+      minimum-idle: 1
+  kafka:
+    consumer:
+      group-id: auth-service
+
+server:
+  port: ${SERVER_PORT:8081}
+
+apex:
+  seed:
+    enabled: ${APEX_DEMO_SEED:true}
+    admin-email: ${DEMO_ADMIN_EMAIL:admin@apexbuild.local}
+    admin-password: ${DEMO_ADMIN_PASSWORD:}
+    customer-email: ${DEMO_CUSTOMER_EMAIL:customer@apexbuild.local}
+    customer-password: ${DEMO_CUSTOMER_PASSWORD:}
