@@ -1,0 +1,2 @@
+ALTER TABLE addresses
+    ALTER COLUMN country TYPE VARCHAR(2);
