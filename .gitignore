@@ -4,6 +4,7 @@ dist/
 .env
 logs/
 scripts/images/out/
+scripts/perf/data/
 scripts/images/image-urls.sql
 scripts/images/image-urls-house.sql
 .run/
