@@ -1,0 +1,18 @@
+spring:
+  config:
+    import: classpath:apex-defaults.yml
+  application:
+    name: inventory-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/apex_inventory
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:3}
+      minimum-idle: 1
+
+server:
+  port: ${SERVER_PORT:8083}
+
+apex:
+  catalog-seed: ${INVENTORY_SEED:true}
