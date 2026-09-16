@@ -1,0 +1,318 @@
+name: apex
+
+x-java-files: &java-files
+  - ../.env
+  - service.env
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - apex-pg:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 25s
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-apex}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - apex-minio:/data
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.4
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/apex_keycloak
+      KC_DB_USERNAME: ${DB_USERNAME:-postgres}
+      KC_DB_PASSWORD: ${DB_PASSWORD}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ../scripts/keycloak/apex-realm.json:/opt/keycloak/data/import/apex-realm.json:ro
+    ports:
+      - "8180:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  discovery-service:
+    build:
+      context: ../services/discovery-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8761"
+      JAVA_OPTS: ${DISCOVERY_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8761:8761"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: ../services/gateway-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8080"
+      JAVA_OPTS: ${GATEWAY_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - discovery-service
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ../services/auth-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8081"
+      JAVA_OPTS: ${AUTH_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ../services/user-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8082"
+      JAVA_OPTS: ${USER_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  inventory-service:
+    build:
+      context: ../services/inventory-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8083"
+      JAVA_OPTS: ${INVENTORY_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: ../services/order-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8084"
+      JAVA_OPTS: ${ORDER_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  payment-1:
+    build:
+      context: ../services/payment-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8085"
+      INSTANCE_ID: payment-service:8085
+      JAVA_OPTS: ${PAYMENT_1_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  payment-2:
+    build:
+      context: ../services/payment-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8185"
+      INSTANCE_ID: payment-service:8185
+      JAVA_OPTS: ${PAYMENT_2_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8185:8185"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  payment-3:
+    build:
+      context: ../services/payment-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8285"
+      INSTANCE_ID: payment-service:8285
+      JAVA_OPTS: ${PAYMENT_3_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8285:8285"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  shipping-service:
+    build:
+      context: ../services/shipping-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8086"
+      JAVA_OPTS: ${SHIPPING_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  cache-service:
+    build:
+      context: ../services/cache-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8087"
+      JAVA_OPTS: ${CACHE_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8087:8087"
+    depends_on:
+      redis:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  report-service:
+    build:
+      context: ../services/report-service
+    env_file: *java-files
+    environment:
+      SERVER_PORT: "8088"
+      JAVA_OPTS: ${REPORT_JAVA_OPTS:--Xms48m -Xmx160m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k}
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    restart: unless-stopped
+
+  webapp:
+    build:
+      context: ../webapp
+    environment:
+      VITE_API_PROXY: http://gateway-service:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway-service
+    restart: unless-stopped
+
+volumes:
+  apex-pg:
+  apex-minio:
