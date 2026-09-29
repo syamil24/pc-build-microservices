@@ -1,0 +1,30 @@
+spring:
+  config:
+    import: classpath:apex-defaults.yml
+  application:
+    name: payment-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/apex_payment
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:3}
+      minimum-idle: 1
+  kafka:
+    consumer:
+      group-id: payment-service
+
+server:
+  port: ${SERVER_PORT:8085}
+
+apex:
+  chip:
+    mode: ${CHIP_MODE:demo}
+    api-base: ${CHIP_API_BASE:https://gate.chip-in.asia/api/v1}
+    secret-key: ${CHIP_SECRET_KEY:}
+    brand-id: ${CHIP_BRAND_ID:}
+    public-key: ${CHIP_PUBLIC_KEY:}
+    success-callback: ${CHIP_SUCCESS_CALLBACK:}
+    success-redirect: ${CHIP_SUCCESS_REDIRECT:http://localhost:5173/orders}
+    failure-redirect: ${CHIP_FAILURE_REDIRECT:http://localhost:5173/checkout}
+    webapp-origin: ${WEBAPP_ORIGIN:http://localhost:5173}
