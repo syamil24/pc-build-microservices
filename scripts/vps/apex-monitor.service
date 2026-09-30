@@ -1,0 +1,14 @@
+[Unit]
+Description=Apex Build VPS monitor
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/apex-build
+ExecStart=/bin/bash /opt/apex-build/scripts/vps/monitor.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

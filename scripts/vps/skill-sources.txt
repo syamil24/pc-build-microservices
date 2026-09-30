@@ -1,0 +1,7 @@
+# name url
+# The monitor records the SHA-256 of each body in ~/.apex-heal/skill-pins.txt
+# on first download. A later body with a different hash is kept aside and not used.
+spring-boot https://raw.githubusercontent.com/pluginagentmarketplace/custom-plugin-java/51aa571c25436e667618e27b8ac8c1d500d62aa2/skills/java-spring-boot/SKILL.md
+docker https://raw.githubusercontent.com/gazolla/gazapps-java-skills/main/docker-deployment/SKILL.md
+redis https://raw.githubusercontent.com/pvillega/claude-templates/main/plugins/ct/skills/redis/SKILL.md
+kafka https://raw.githubusercontent.com/lensesio/agentic-engineering-for-apache-kafka/HEAD/skills/kafka-consumer-lag/SKILL.md
