@@ -1,0 +1,41 @@
+name: review
+
+on:
+  pull_request:
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the agent SDK
+        run: npm install --prefix scripts
+      - name: Diff against the base branch
+        run: git diff "origin/${{ github.base_ref }}...HEAD" > diff.txt
+      - name: Architecture rules
+        run: node scripts/agents/review-rules.mjs diff.txt > rules.txt || true
+      - name: Model review
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/agents/review-agent.mjs diff.txt > model.txt || true
+      - name: Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat rules.txt model.txt > comment.txt
+          if [[ ! -s comment.txt ]]; then
+            exit 0
+          fi
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file comment.txt
+          if grep -q "secret" rules.txt; then
+            exit 1
+          fi

@@ -1,0 +1,40 @@
+name: resolve
+
+on:
+  workflow_run:
+    workflows: ["ci", "review"]
+    types: [completed]
+
+jobs:
+  resolve:
+    if: >
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the agent SDK
+        run: npm install --prefix scripts
+      - name: Edit the pull request branch
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          RESOLVE_NOTE: ${{ github.event.workflow_run.name }} failed on ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/agents/resolve-agent.mjs
+      - name: Push the fix onto the same branch
+        run: |
+          if git diff --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
+            exit 0
+          fi
+          git add -A
+          git -c user.email="apex-heal@users.noreply.github.com" -c user.name="Apex Heal" \
+            commit -m "Apply the review fix"
+          git push
