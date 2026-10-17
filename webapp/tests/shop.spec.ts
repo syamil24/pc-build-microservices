@@ -66,5 +66,5 @@ test("builder shows a live price", async ({ page }) => {
 
   await page.goto("/builder");
   await page.getByRole("button", { name: /Voltedge V6 7600/ }).click();
-  await expect(page.getByText("RM 899.00")).toBeVisible();
+  await expect(page.getByRole("complementary").getByText("RM 899.00")).toBeVisible();
 });
