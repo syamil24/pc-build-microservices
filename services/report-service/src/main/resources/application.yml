@@ -1,0 +1,22 @@
+spring:
+  config:
+    import: classpath:apex-defaults.yml
+  application:
+    name: report-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/apex_report
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:3}
+      minimum-idle: 1
+  kafka:
+    consumer:
+      group-id: report-service
+
+server:
+  port: ${SERVER_PORT:8088}
+
+apex:
+  cache:
+    client-enabled: false

@@ -11,6 +11,8 @@ import com.apexbuild.order.repo.CartItemRepository;
 import com.apexbuild.order.repo.CartRepository;
 import com.apexbuild.order.repo.CustomerOrderRepository;
 import com.apexbuild.order.repo.OrderLineRepository;
+import com.apexbuild.order.web.OrderDtos.InternalLine;
+import com.apexbuild.order.web.OrderDtos.InternalOrder;
 import com.apexbuild.order.web.OrderDtos.OrderLineResponse;
 import com.apexbuild.order.web.OrderDtos.OrderResponse;
 import com.apexbuild.web.security.CurrentUser;
@@ -65,8 +67,9 @@ public class CheckoutService {
         items.forEach(item -> buildByProduct.put(item.getProductId(), item.getBuildId()));
         for (JsonNode line : quote.get("lines")) {
             UUID productId = UUID.fromString(line.get("productId").asText());
-            orderLines.save(OrderLine.from(order.getId(), productId, line.get("name").asText(),
-                    line.get("unitPriceCents").asInt(), line.get("quantity").asInt(), buildByProduct.get(productId)));
+            orderLines.save(OrderLine.from(order.getId(), productId, line.get("name").asText(), text(line, "sku"),
+                    text(line, "category"), line.get("unitPriceCents").asInt(), line.get("quantity").asInt(),
+                    buildByProduct.get(productId)));
         }
         List<Map<String, Object>> reserveLines = new ArrayList<>();
         List<Map<String, Object>> chargeLines = new ArrayList<>();
@@ -99,6 +102,19 @@ public class CheckoutService {
 
     public List<OrderResponse> mine() {
         return orders.findByUserIdOrderByCreatedAtDesc(CurrentUser.id()).stream().map(this::toResponse).toList();
+    }
+
+    public InternalOrder internal(UUID id) {
+        CustomerOrder order = orders.findById(id)
+                .orElseThrow(() -> new ApexException(ErrorCode.NOT_FOUND, "Order not found"));
+        List<OrderLine> lines = orderLines.findByOrderIdOrderByProductIdAsc(order.getId());
+        List<InternalLine> mapped = new ArrayList<>();
+        for (int index = 0; index < lines.size(); index++) {
+            OrderLine line = lines.get(index);
+            mapped.add(new InternalLine(index + 1, line.getProductId(), line.getSku(), line.getCategoryCode(),
+                    line.getProductName(), line.getUnitPriceCents(), line.getQuantity(), line.getLineTotalCents()));
+        }
+        return new InternalOrder(order.getId(), order.getStatus(), mapped);
     }
 
     public OrderResponse get(UUID id) {
@@ -146,5 +162,10 @@ public class CheckoutService {
                 .toList();
         return new OrderResponse(order.getId(), order.getStatus(), order.getCurrency(), order.getTotalCents(),
                 order.getAddressSnapshot(), order.getCheckoutUrl(), order.getPaymentId(), order.getCreatedAt(), lines);
+    }
+
+    private String text(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asText();
     }
 }

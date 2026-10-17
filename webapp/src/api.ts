@@ -31,6 +31,7 @@ export function clearSession() {
   localStorage.removeItem(REFRESH);
   localStorage.removeItem(EMAIL);
   localStorage.removeItem(ROLE);
+  localStorage.removeItem("apex.idp");
   window.dispatchEvent(new Event("apex-auth"));
 }
 
@@ -58,4 +59,22 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
     throw new Error(body?.error?.message || `Request failed (${response.status})`);
   }
   return body.data as T;
+}
+
+export async function download(path: string, filename: string) {
+  const headers = new Headers();
+  const token = localStorage.getItem(ACCESS);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(path, { headers });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message || `Request failed (${response.status})`);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }

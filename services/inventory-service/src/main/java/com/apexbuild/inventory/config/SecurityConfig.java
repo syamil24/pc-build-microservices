@@ -16,6 +16,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwt, InternalTokenFilter internal)
             throws Exception {
-        return SecuritySupport.api(http, jwt, internal, "/api/catalog/**");
+        return SecuritySupport.api(http, jwt, internal,
+                new String[]{"/api/catalog/categories", "/api/catalog/products", "/api/catalog/products/*", "/api/catalog/builder/quote"},
+                new String[]{"/api/catalog/admin/**"});
     }
 }

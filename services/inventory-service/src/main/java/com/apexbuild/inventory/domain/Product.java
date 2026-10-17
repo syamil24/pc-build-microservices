@@ -41,6 +41,9 @@ public class Product {
     @Column(name = "image_hue", nullable = false)
     private int imageHue;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false)
     private Map<String, Object> specs;
@@ -103,6 +106,14 @@ public class Product {
         return imageHue;
     }
 
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
     public Map<String, Object> getSpecs() {
         return specs;
     }
@@ -113,5 +124,23 @@ public class Product {
 
     public void setStock(int stock) {
         this.stock = stock;
+    }
+
+    public void replace(String sku, String name, String categoryCode, String brand, String description, int priceCents,
+                        int stock, int imageHue, Map<String, Object> specs, boolean active) {
+        this.sku = sku;
+        this.name = name;
+        this.categoryCode = categoryCode;
+        this.brand = brand;
+        this.description = description;
+        this.priceCents = priceCents;
+        this.stock = stock;
+        this.imageHue = imageHue;
+        this.specs = specs;
+        this.active = active;
+    }
+
+    public void deactivate() {
+        this.active = false;
     }
 }

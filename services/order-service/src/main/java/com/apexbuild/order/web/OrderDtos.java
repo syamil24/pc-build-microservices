@@ -30,4 +30,11 @@ public final class OrderDtos {
     public record OrderResponse(UUID id, String status, String currency, int totalCents, String address, String checkoutUrl,
                                 UUID paymentId, Instant createdAt, List<OrderLineResponse> lines) {
     }
+
+    public record InternalLine(int lineNo, UUID productId, String sku, String category, String name, int unitPriceCents,
+                               int quantity, int lineTotalCents) {
+    }
+
+    public record InternalOrder(UUID id, String status, List<InternalLine> lines) {
+    }
 }

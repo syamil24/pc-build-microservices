@@ -23,6 +23,7 @@
         <module>services/payment-service</module>
         <module>services/shipping-service</module>
         <module>services/cache-service</module>
+        <module>services/report-service</module>
     </modules>
 
     <properties>

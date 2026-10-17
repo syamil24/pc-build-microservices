@@ -23,6 +23,12 @@ public class OrderLine {
     @Column(name = "product_name", nullable = false)
     private String productName;
 
+    @Column
+    private String sku;
+
+    @Column(name = "category_code")
+    private String categoryCode;
+
     @Column(name = "unit_price_cents", nullable = false)
     private int unitPriceCents;
 
@@ -38,17 +44,28 @@ public class OrderLine {
     protected OrderLine() {
     }
 
-    public static OrderLine from(UUID orderId, UUID productId, String name, int unitPriceCents, int quantity, UUID buildId) {
+    public static OrderLine from(UUID orderId, UUID productId, String name, String sku, String categoryCode,
+                                 int unitPriceCents, int quantity, UUID buildId) {
         OrderLine line = new OrderLine();
         line.id = UUID.randomUUID();
         line.orderId = orderId;
         line.productId = productId;
         line.productName = name;
+        line.sku = sku;
+        line.categoryCode = categoryCode;
         line.unitPriceCents = unitPriceCents;
         line.quantity = quantity;
         line.lineTotalCents = Totals.line(unitPriceCents, quantity);
         line.buildId = buildId;
         return line;
+    }
+
+    public String getSku() {
+        return sku;
+    }
+
+    public String getCategoryCode() {
+        return categoryCode;
     }
 
     public UUID getProductId() {

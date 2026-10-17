@@ -48,6 +48,10 @@ spring:
           uri: lb://shipping-service
           predicates:
             - Path=/api/shipments/**
+        - id: reports
+          uri: lb://report-service
+          predicates:
+            - Path=/api/reports/**
         - id: platform
           uri: http://localhost:8761
           predicates:

@@ -15,7 +15,11 @@ public final class CatalogDtos {
     }
 
     public record ProductResponse(UUID id, String sku, String name, String category, String brand, String description,
-                                  int priceCents, int stock, int imageHue, Map<String, Object> specs) {
+                                  int priceCents, int stock, int imageHue, String imageUrl, Map<String, Object> specs, boolean active) {
+    }
+
+    public record ProductWrite(String sku, String name, String category, String brand, String description,
+                               int priceCents, int stock, Integer imageHue, Map<String, Object> specs, Boolean active) {
     }
 
     public record LineRequest(UUID productId, int quantity) {

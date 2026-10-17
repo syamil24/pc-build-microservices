@@ -6,10 +6,15 @@ import type { Cart } from "./types";
 export default function Layout() {
   const navigate = useNavigate();
   const [email, setEmail] = useState(session()?.email ?? null);
+  const [role, setRole] = useState(session()?.role ?? null);
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const sync = () => setEmail(session()?.email ?? null);
+    const sync = () => {
+      const current = session();
+      setEmail(current?.email ?? null);
+      setRole(current?.role ?? null);
+    };
     window.addEventListener("apex-auth", sync);
     window.addEventListener("apex-cart", () => refreshCart());
     refreshCart();
@@ -38,7 +43,7 @@ export default function Layout() {
         <NavLink to="/" className="brand">APEX<span>BUILD</span></NavLink>
         <NavLink to="/shop">Shop</NavLink>
         <NavLink to="/builder">PC Builder</NavLink>
-        <NavLink to="/platform">Live ops</NavLink>
+        {role === "ADMIN" && <NavLink to="/admin">Admin</NavLink>}
         <div className="spacer" />
         <NavLink to="/cart">Cart ({count})</NavLink>
         {email ? (

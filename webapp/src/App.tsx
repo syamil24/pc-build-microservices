@@ -13,6 +13,11 @@ import RegisterPage from "./pages/RegisterPage";
 import AccountPage from "./pages/AccountPage";
 import DemoPayPage from "./pages/DemoPayPage";
 import PlatformPage from "./pages/PlatformPage";
+import RequireAdmin from "./pages/admin/RequireAdmin";
+import AdminLayout from "./pages/admin/AdminLayout";
+import ProductsPage from "./pages/admin/ProductsPage";
+import ProductFormPage from "./pages/admin/ProductFormPage";
+import ReportsPage from "./pages/admin/ReportsPage";
 
 export default function App() {
   return (
@@ -30,8 +35,17 @@ export default function App() {
         <Route path="register" element={<RegisterPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="pay/demo/:paymentId" element={<DemoPayPage />} />
-        <Route path="platform" element={<PlatformPage />} />
+        <Route path="platform" element={<Navigate to="/admin/platform" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+      <Route element={<RequireAdmin />}>
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<ProductsPage />} />
+          <Route path="products/new" element={<ProductFormPage />} />
+          <Route path="products/:id" element={<ProductFormPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="platform" element={<PlatformPage />} />
+        </Route>
       </Route>
     </Routes>
   );

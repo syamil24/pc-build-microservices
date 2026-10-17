@@ -1,5 +1,6 @@
 package com.apexbuild.gateway.filter;
 
+import com.apexbuild.common.security.JwtClaims;
 import com.apexbuild.common.security.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +44,14 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         if (header == null || !header.startsWith("Bearer ")) {
             return unauthorized(cleaned);
         }
+        JwtClaims claims;
         try {
-            jwtService.parse(header.substring(7));
+            claims = jwtService.parse(header.substring(7));
         } catch (RuntimeException ex) {
             return unauthorized(cleaned);
+        }
+        if (isAdminOnly(path) && !"ADMIN".equals(claims.role())) {
+            return forbidden(cleaned);
         }
         return chain.filter(cleaned).doFinally(signal -> log.info("gateway {} {} -> {} in {}ms", method, path,
                 cleaned.getResponse().getStatusCode(), System.currentTimeMillis() - started));
@@ -56,17 +61,36 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         if ("OPTIONS".equals(method)) {
             return true;
         }
-        if (path.startsWith("/api/catalog") || path.startsWith("/api/platform") || path.startsWith("/actuator")) {
+        if (path.startsWith("/actuator")) {
             return true;
+        }
+        if (path.startsWith("/api/catalog") && !path.startsWith("/api/catalog/admin")) {
+            if ("GET".equals(method)) {
+                return true;
+            }
+            return "POST".equals(method) && path.equals("/api/catalog/builder/quote");
         }
         return "POST".equals(method) && (path.equals("/api/auth/register") || path.equals("/api/auth/login")
                 || path.equals("/api/auth/refresh") || path.equals("/api/payments/chip/callback"));
+    }
+
+    private boolean isAdminOnly(String path) {
+        return path.startsWith("/api/platform") || path.startsWith("/api/reports") || path.startsWith("/api/catalog/admin");
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {
         byte[] body = "{\"success\":false,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"Login required\"}}"
                 .getBytes(StandardCharsets.UTF_8);
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
+        return exchange.getResponse().writeWith(Mono.just(buffer));
+    }
+
+    private Mono<Void> forbidden(ServerWebExchange exchange) {
+        byte[] body = "{\"success\":false,\"error\":{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}}"
+                .getBytes(StandardCharsets.UTF_8);
+        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
         return exchange.getResponse().writeWith(Mono.just(buffer));

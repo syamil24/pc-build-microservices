@@ -10,7 +10,18 @@ export type Product = {
   priceCents: number;
   stock: number;
   imageHue: number;
+  imageUrl?: string | null;
   specs: Record<string, unknown>;
+  active?: boolean;
+};
+
+export type SalesReport = {
+  month: string;
+  category: string;
+  orderCount: number;
+  unitCount: number;
+  totalCents: number;
+  rows: Array<{ categoryCode: string; sku: string; productName: string; quantity: number; revenueCents: number }>;
 };
 
 export type Page<T> = { items: T[]; page: number; size: number; total: number };
