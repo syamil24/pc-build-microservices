@@ -91,11 +91,41 @@ Windows:
 powershell -ExecutionPolicy Bypass -File scripts\run-all.ps1
 ```
 
-The script prints the demo customer and admin passwords. Stop the stack with `scripts/stop-all.sh` or `scripts/stop-all.ps1`.
+The script prints the demo customer and admin passwords. `scripts/stop-all.sh` and `scripts/stop-all.ps1` stop the processes recorded in `.run`.
 
 On an 8GB machine, close extra browsers and set nothing else. The default JVM profile is the small one. Use `APEX_JVM_PROFILE=full` only when you have memory to spare.
 
-## 5. Use the shop
+## 5. Load the full catalog
+
+The shop starts with a small fictional seed so the builder demo still works. To add current CPUs, boards, memory, GPUs, storage, power supplies, cases, coolers, laptops, monitors, and peripherals, run the pump. It writes demo shelf prices in Malaysian ringgit cents and upserts by SKU, so running it again updates rows instead of duplicating them.
+
+macOS or Linux:
+
+```bash
+bash scripts/pump-catalog.sh
+```
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\pump-catalog.ps1
+```
+
+The generator is `scripts/catalog/emit-sql.js`. It writes `scripts/catalog/catalog.sql`, and the pump applies that file to `apex_inventory` only. Category pages can take up to two minutes to refresh because that list is cached.
+
+## 6. Stop the shop, Redis, and Kafka
+
+`scripts/kill-all.sh` (macOS and Linux) and `scripts/kill-all.ps1` (Windows) stop the Apex jars, the webapp, Redis, and Kafka, including listeners on the Apex ports. PostgreSQL is left running.
+
+```bash
+bash scripts/kill-all.sh
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\kill-all.ps1
+```
+
+## 7. Use the shop
 
 1. Open `http://localhost:5173`.
 2. Register, or log in with the demo customer from `.env`.
