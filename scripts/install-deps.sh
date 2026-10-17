@@ -107,4 +107,37 @@ log "Maven: $(mvn -version 2>&1 | head -n 1)"
 log "Node: $(node -v 2>/dev/null || echo missing)"
 log "Redis CLI: $(command -v redis-cli || echo missing)"
 log "Kafka: ${KAFKA_HOME}"
+
+MINIO_HOME="${HOME}/.apex-build/minio"
+mkdir -p "${MINIO_HOME}"
+case "$(uname -m)" in
+  arm64|aarch64) MINIO_ARCH="arm64" ;;
+  x86_64|amd64) MINIO_ARCH="amd64" ;;
+  *)
+    log "ERROR: no MinIO build for $(uname -m)"
+    exit 1
+    ;;
+esac
+case "${OS}" in
+  Darwin) MINIO_OS="darwin" ;;
+  Linux) MINIO_OS="linux" ;;
+  *)
+    log "ERROR: no MinIO build for ${OS}"
+    exit 1
+    ;;
+esac
+# Last community builds that still publish binaries. Newer MinIO tags are source-only.
+MINIO_RELEASE="RELEASE.2025-09-07T16-13-09Z"
+MC_RELEASE="RELEASE.2025-08-13T08-35-41Z"
+if [[ ! -x "${MINIO_HOME}/minio" ]]; then
+  log "Downloading MinIO server ${MINIO_RELEASE}"
+  run curl -fL --retry 3 -o "${MINIO_HOME}/minio" "https://github.com/minio/minio/releases/download/${MINIO_RELEASE}/minio.${MINIO_OS}-${MINIO_ARCH}.${MINIO_RELEASE}"
+  chmod +x "${MINIO_HOME}/minio"
+fi
+if [[ ! -x "${MINIO_HOME}/mc" ]]; then
+  log "Downloading MinIO client ${MC_RELEASE}"
+  run curl -fL --retry 3 -o "${MINIO_HOME}/mc" "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.${MINIO_OS}-${MINIO_ARCH}.${MC_RELEASE}"
+  chmod +x "${MINIO_HOME}/mc"
+fi
+log "MinIO: ${MINIO_HOME}"
 log "Done. Log: ${LOG_FILE}"

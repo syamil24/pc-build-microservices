@@ -43,4 +43,18 @@ if (-not (Test-Path (Join-Path $kafkaDir "bin\windows\kafka-server-start.bat")))
 }
 Write-Log "Redis: $redisDir"
 Write-Log "Kafka: $kafkaDir"
+$minioDir = Join-Path $tools "minio"
+New-Item -ItemType Directory -Force -Path $minioDir | Out-Null
+# Last community builds that still publish binaries. Newer MinIO tags are source-only.
+$minioRelease = "RELEASE.2025-09-07T16-13-09Z"
+$mcRelease = "RELEASE.2025-08-13T08-35-41Z"
+if (-not (Test-Path (Join-Path $minioDir "minio.exe"))) {
+  Write-Log "Downloading MinIO server $minioRelease"
+  Invoke-WebRequest -Uri "https://github.com/minio/minio/releases/download/$minioRelease/minio.windows-amd64.$minioRelease.exe" -OutFile (Join-Path $minioDir "minio.exe")
+}
+if (-not (Test-Path (Join-Path $minioDir "mc.exe"))) {
+  Write-Log "Downloading MinIO client $mcRelease"
+  Invoke-WebRequest -Uri "https://github.com/minio/mc/releases/download/$mcRelease/mc.windows-amd64.$mcRelease.exe" -OutFile (Join-Path $minioDir "mc.exe")
+}
+Write-Log "MinIO: $minioDir"
 Write-Log "Done. Log: $log"

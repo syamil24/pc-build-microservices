@@ -2,12 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+const { sheet } = require("./details");
+
 const items = [];
 
 function add(sku, name, category, brand, myr, stock, hue, description, specs) {
   if (sku.length > 40) throw new Error("SKU too long: " + sku);
   if (name.length > 160) throw new Error("Name too long: " + name);
-  items.push({ sku, name, category, brand, priceCents: Math.round(myr * 100), stock, hue, description, specs });
+  const extra = sheet(sku, name, category, specs);
+  if (!extra) throw new Error("Missing spec sheet for " + sku);
+  items.push({ sku, name, category, brand, priceCents: Math.round(myr * 100), stock, hue, description, specs: Object.assign({}, specs, extra) });
 }
 
 const ALL_SOCKETS = ["AM4", "AM5", "LGA1700", "LGA1851"];
@@ -257,7 +261,7 @@ boards([
   ["LG-34GP63", "34GP63A-B", "LG", 1799, 34, "3440x1440", 160],
   ["SAM-G5-27", "Odyssey G5 27", "Samsung", 999, 27, "2560x1440", 165],
   ["SAM-G6-27", "Odyssey G6 27", "Samsung", 1899, 27, "2560x1440", 240],
-  ["SAM-G7-32", "Odyssey G7 32", "Samsung", 2299, 32, "2560x1440", 165],
+  ["SAM-G7-32", "Odyssey G7 32", "Samsung", 2299, 32, "2560x1440", 240],
   ["SAM-G9-49", "Odyssey G9 49", "Samsung", 4999, 49, "5120x1440", 240],
   ["ASUS-VG27AQ", "TUF VG27AQ", "ASUS", 1199, 27, "2560x1440", 165],
   ["ASUS-XG27AQ", "ROG Strix XG27AQ", "ASUS", 1699, 27, "2560x1440", 170],
@@ -361,3 +365,5 @@ const counts = {};
 for (const item of items) counts[item.category] = (counts[item.category] || 0) + 1;
 console.log("Wrote " + items.length + " products to " + out);
 console.log(JSON.stringify(counts));
+
+module.exports = { items, uuidFor };

@@ -30,20 +30,20 @@ if command -v pgrep >/dev/null 2>&1; then
     [[ -z "${pid}" || "${pid}" == "$$" ]] && continue
     cmd="$(ps -p "${pid}" -o args= 2>/dev/null || true)"
     case "${cmd}" in
-      *"${ROOT}"*|*"${TOOLS}"*|*"kafka.Kafka"*|*"kafka-server-start"*|*"redis-server"*)
+      *"${ROOT}"*|*"${TOOLS}"*|*"kafka.Kafka"*|*"kafka-server-start"*|*"redis-server"*|*"minio server"*|*/minio|*"keycloak"*)
         stop_pid "${pid}"
         ;;
     esac
-  done < <(pgrep -f "apex-build|kafka.Kafka|kafka-server-start|redis-server" || true)
+  done < <(pgrep -f "apex-build|kafka.Kafka|kafka-server-start|redis-server|minio|keycloak" || true)
 fi
 
 if command -v lsof >/dev/null 2>&1; then
-  for port in 6379 9092 5173 8080 8081 8082 8083 8084 8085 8185 8285 8086 8087 8761; do
+  for port in 6379 9092 5173 8080 8081 8082 8083 8084 8085 8185 8285 8086 8087 8088 8761 8180 9000 9001; do
     pids="$(lsof -nP -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)"
     for pid in ${pids}; do
       name="$(ps -p "${pid}" -o comm= 2>/dev/null || true)"
       case "${name}" in
-        redis-server|java|node|npm) stop_pid "${pid}" ;;
+        redis-server|java|node|npm|minio) stop_pid "${pid}" ;;
       esac
     done
   done

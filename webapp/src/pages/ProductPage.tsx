@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, formatMyr, session } from "../api";
+import ProductPhoto from "../ProductPhoto";
+import { specRows } from "../specs";
 import type { Product } from "../types";
 
 export default function ProductPage() {
@@ -28,18 +30,21 @@ export default function ProductPage() {
 
   if (!product) return <p>{message || "Loading part..."}</p>;
   return (
-    <article className="split" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 24 }}>
-      <div className="swatch" style={{ minHeight: 280, background: `linear-gradient(160deg, hsl(${product.imageHue} 70% 40%), #0d1016)` }}>{product.sku}</div>
+    <article className="product-layout">
+      <ProductPhoto product={product} label={product.sku} />
       <div>
         <div className="kicker">{product.category}</div>
         <h1>{product.name}</h1>
         <p className="muted">{product.description}</p>
         <p className="price">{formatMyr(product.priceCents)}</p>
-        <ul>
-          {Object.entries(product.specs).map(([key, value]) => (
-            <li key={key}><strong>{key}</strong>: {Array.isArray(value) ? value.join(", ") : String(value)}</li>
+        <dl className="spec-table">
+          {specRows(product).map((row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
           ))}
-        </ul>
+        </dl>
         <button className="btn" onClick={add}>Add to cart</button>
         {message && <p>{message}</p>}
       </div>

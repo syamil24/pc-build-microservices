@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMyr } from "../api";
+import ProductPhoto from "../ProductPhoto";
+import { specSummary } from "../specs";
 import type { Category, Page, Product } from "../types";
 
 export default function ShopPage() {
@@ -52,9 +54,10 @@ export default function ShopPage() {
         <div className="grid">
           {products?.items.map((product) => (
             <Link key={product.id} to={`/product/${product.id}`} className="panel card">
-              <div className="swatch" style={{ background: `linear-gradient(145deg, hsl(${product.imageHue} 70% 42%), #101218)` }}>{product.category}</div>
+              <ProductPhoto product={product} />
               <div className="pill">{product.brand}</div>
               <h3>{product.name}</h3>
+              {specSummary(product) && <div className="spec-line">{specSummary(product)}</div>}
               <div className="price">{formatMyr(product.priceCents)}</div>
               <div className="muted">{product.stock} in stock</div>
             </Link>
