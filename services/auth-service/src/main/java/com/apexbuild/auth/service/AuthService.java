@@ -91,9 +91,16 @@ public class AuthService {
         return tokens(user, null);
     }
 
+    @Transactional
     public MeResponse me() {
-        var user = CurrentUser.require();
-        return new MeResponse(user.userId(), user.email(), user.role());
+        var current = CurrentUser.require();
+        users.findById(current.userId()).orElseGet(() -> {
+            UserAccount created = users.save(UserAccount.linked(current.userId(), current.email(),
+                    passwordEncoder.encode(rawRefresh()), current.role()));
+            publishProfile(created, current.email());
+            return created;
+        });
+        return new MeResponse(current.userId(), current.email(), current.role());
     }
 
     private AuthResponse tokens(UserAccount user, String fullName) {

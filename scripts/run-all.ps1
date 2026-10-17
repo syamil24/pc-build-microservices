@@ -21,13 +21,37 @@ if (-not $env:JWT_SECRET) { $env:JWT_SECRET = New-Secret; $updated = $true }
 if (-not $env:INTERNAL_SERVICE_TOKEN) { $env:INTERNAL_SERVICE_TOKEN = New-Secret; $updated = $true }
 if (-not $env:DEMO_ADMIN_PASSWORD) { $env:DEMO_ADMIN_PASSWORD = "Admin-" + (Get-Random -Maximum 999999); $updated = $true }
 if (-not $env:DEMO_CUSTOMER_PASSWORD) { $env:DEMO_CUSTOMER_PASSWORD = "Customer-" + (Get-Random -Maximum 999999); $updated = $true }
+if (-not $env:KEYCLOAK_ADMIN) { $env:KEYCLOAK_ADMIN = "admin"; $updated = $true }
+if (-not $env:KEYCLOAK_ADMIN_PASSWORD) {
+  $env:KEYCLOAK_ADMIN_PASSWORD = "Keycloak-" + [guid]::NewGuid().ToString("N")
+  $updated = $true
+}
+if (-not $env:KEYCLOAK_URL) { $env:KEYCLOAK_URL = "http://localhost:8180"; $updated = $true }
+if (-not $env:KEYCLOAK_ISSUER) { $env:KEYCLOAK_ISSUER = "http://localhost:8180/realms/apex"; $updated = $true }
+if (-not $env:MINIO_ROOT_USER) { $env:MINIO_ROOT_USER = "apex"; $updated = $true }
+if (-not $env:MINIO_ROOT_PASSWORD) {
+  $env:MINIO_ROOT_PASSWORD = "Minio-" + [guid]::NewGuid().ToString("N")
+  $updated = $true
+}
 if ($updated) {
-  $text = Get-Content .env
-  $text = $text -replace '^JWT_SECRET=.*', "JWT_SECRET=$($env:JWT_SECRET)"
-  $text = $text -replace '^INTERNAL_SERVICE_TOKEN=.*', "INTERNAL_SERVICE_TOKEN=$($env:INTERNAL_SERVICE_TOKEN)"
-  $text = $text -replace '^DEMO_ADMIN_PASSWORD=.*', "DEMO_ADMIN_PASSWORD=$($env:DEMO_ADMIN_PASSWORD)"
-  $text = $text -replace '^DEMO_CUSTOMER_PASSWORD=.*', "DEMO_CUSTOMER_PASSWORD=$($env:DEMO_CUSTOMER_PASSWORD)"
-  Set-Content .env $text
+  $text = Get-Content .env -Raw
+  $text = $text -replace '(?m)^JWT_SECRET=.*', "JWT_SECRET=$($env:JWT_SECRET)"
+  $text = $text -replace '(?m)^INTERNAL_SERVICE_TOKEN=.*', "INTERNAL_SERVICE_TOKEN=$($env:INTERNAL_SERVICE_TOKEN)"
+  $text = $text -replace '(?m)^DEMO_ADMIN_PASSWORD=.*', "DEMO_ADMIN_PASSWORD=$($env:DEMO_ADMIN_PASSWORD)"
+  $text = $text -replace '(?m)^DEMO_CUSTOMER_PASSWORD=.*', "DEMO_CUSTOMER_PASSWORD=$($env:DEMO_CUSTOMER_PASSWORD)"
+  if ($text -notmatch '(?m)^KEYCLOAK_ADMIN=') { $text += "`r`nKEYCLOAK_ADMIN=$($env:KEYCLOAK_ADMIN)`r`n" }
+  else { $text = $text -replace '(?m)^KEYCLOAK_ADMIN=.*', "KEYCLOAK_ADMIN=$($env:KEYCLOAK_ADMIN)" }
+  if ($text -notmatch '(?m)^KEYCLOAK_ADMIN_PASSWORD=') { $text += "`r`nKEYCLOAK_ADMIN_PASSWORD=$($env:KEYCLOAK_ADMIN_PASSWORD)`r`n" }
+  else { $text = $text -replace '(?m)^KEYCLOAK_ADMIN_PASSWORD=.*', "KEYCLOAK_ADMIN_PASSWORD=$($env:KEYCLOAK_ADMIN_PASSWORD)" }
+  if ($text -notmatch '(?m)^KEYCLOAK_URL=') { $text += "`r`nKEYCLOAK_URL=$($env:KEYCLOAK_URL)`r`n" }
+  else { $text = $text -replace '(?m)^KEYCLOAK_URL=.*', "KEYCLOAK_URL=$($env:KEYCLOAK_URL)" }
+  if ($text -notmatch '(?m)^KEYCLOAK_ISSUER=') { $text += "`r`nKEYCLOAK_ISSUER=$($env:KEYCLOAK_ISSUER)`r`n" }
+  else { $text = $text -replace '(?m)^KEYCLOAK_ISSUER=.*', "KEYCLOAK_ISSUER=$($env:KEYCLOAK_ISSUER)" }
+  if ($text -notmatch '(?m)^MINIO_ROOT_USER=') { $text += "`r`nMINIO_ROOT_USER=$($env:MINIO_ROOT_USER)`r`n" }
+  else { $text = $text -replace '(?m)^MINIO_ROOT_USER=.*', "MINIO_ROOT_USER=$($env:MINIO_ROOT_USER)" }
+  if ($text -notmatch '(?m)^MINIO_ROOT_PASSWORD=') { $text += "`r`nMINIO_ROOT_PASSWORD=$($env:MINIO_ROOT_PASSWORD)`r`n" }
+  else { $text = $text -replace '(?m)^MINIO_ROOT_PASSWORD=.*', "MINIO_ROOT_PASSWORD=$($env:MINIO_ROOT_PASSWORD)" }
+  [System.IO.File]::WriteAllText((Join-Path $root ".env"), $text, (New-Object System.Text.UTF8Encoding $false))
   Write-Log "Generated local secrets in .env"
 }
 if (-not $env:DB_PASSWORD) { Write-Log "ERROR: set DB_PASSWORD in .env"; exit 1 }
@@ -102,6 +126,58 @@ log.retention.hours=24
   if (-not $ready) { Write-Log "ERROR: Kafka did not start. See logs/kafka.err.log"; exit 1 }
 }
 
+$minioHome = Join-Path $env:USERPROFILE ".apex-build\minio"
+$minio = Join-Path $minioHome "minio.exe"
+if (-not $env:MINIO_API_PORT) { $env:MINIO_API_PORT = "9000" }
+if (-not $env:MINIO_CONSOLE_PORT) { $env:MINIO_CONSOLE_PORT = "9001" }
+if (-not (Get-NetTCPConnection -LocalPort $env:MINIO_API_PORT -State Listen -ErrorAction SilentlyContinue)) {
+  if (-not (Test-Path $minio)) { Write-Log "ERROR: MinIO missing. Run scripts/install-deps.ps1"; exit 1 }
+  $minioData = Join-Path $env:USERPROFILE ".apex-build\minio-data"
+  New-Item -ItemType Directory -Force -Path $minioData | Out-Null
+  Write-Log "Starting MinIO"
+  Start-Process -FilePath $minio -ArgumentList @("server", $minioData, "--address", "127.0.0.1:$($env:MINIO_API_PORT)", "--console-address", "127.0.0.1:$($env:MINIO_CONSOLE_PORT)") -WindowStyle Hidden -RedirectStandardOutput logs\minio.log -RedirectStandardError logs\minio.err.log
+  $ready = $false
+  foreach ($i in 1..20) {
+    Start-Sleep -Seconds 1
+    if (Get-NetTCPConnection -LocalPort $env:MINIO_API_PORT -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
+  }
+  if (-not $ready) { Write-Log "ERROR: MinIO did not start. See logs/minio.err.log"; exit 1 }
+} else {
+  Write-Log "MinIO is already up"
+}
+
+& powershell -File (Join-Path $root "scripts\install-keycloak.ps1")
+if ($LASTEXITCODE -ne 0) { exit 1 }
+$kcHome = (Get-Content .run\keycloak-home.txt -Raw).Trim()
+$kcBat = Join-Path $kcHome "bin\kc.bat"
+if (-not (Get-NetTCPConnection -LocalPort 8180 -State Listen -ErrorAction SilentlyContinue)) {
+  Write-Log "Starting Keycloak"
+  $env:KC_BOOTSTRAP_ADMIN_USERNAME = $env:KEYCLOAK_ADMIN
+  $env:KC_BOOTSTRAP_ADMIN_PASSWORD = $env:KEYCLOAK_ADMIN_PASSWORD
+  $env:KEYCLOAK_ADMIN = $env:KEYCLOAK_ADMIN
+  Start-Process -FilePath $kcBat -ArgumentList @(
+    "start-dev","--http-port=8180","--http-management-port=9002",
+    "--db=postgres",
+    "--db-url=jdbc:postgresql://$($env:DB_HOST):$($env:DB_PORT)/apex_keycloak",
+    "--db-username=$($env:DB_USERNAME)",
+    "--db-password=$($env:DB_PASSWORD)"
+  ) -WorkingDirectory $kcHome -WindowStyle Hidden -RedirectStandardOutput logs\keycloak.log -RedirectStandardError logs\keycloak.err.log
+  $ready = $false
+  foreach ($i in 1..40) {
+    Start-Sleep -Seconds 2
+    try {
+      Invoke-WebRequest -Uri "http://127.0.0.1:8180/realms/master" -UseBasicParsing -TimeoutSec 2 | Out-Null
+      $ready = $true
+      break
+    } catch { }
+  }
+  if (-not $ready) { Write-Log "ERROR: Keycloak did not start. See logs/keycloak.err.log"; exit 1 }
+} else {
+  Write-Log "Keycloak is already up"
+}
+& powershell -File (Join-Path $root "scripts\setup-keycloak.ps1")
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
 if ($args -notcontains "--no-build") {
   Write-Log "Packaging fat jars"
   mvn -B -DskipTests package
@@ -135,9 +211,11 @@ Start-Jar "user-service" "services\user-service\target\user-service-1.0.0.jar" @
 Start-Jar "inventory-service" "services\inventory-service\target\inventory-service-1.0.0.jar" @()
 Start-Jar "order-service" "services\order-service\target\order-service-1.0.0.jar" @()
 Start-Jar "shipping-service" "services\shipping-service\target\shipping-service-1.0.0.jar" @()
+Start-Jar "report-service" "services\report-service\target\report-service-1.0.0.jar" @()
 Start-Jar "payment-1" "services\payment-service\target\payment-service-1.0.0.jar" @("--server.port=8085","--apex.instance-id=payment-1","--eureka.instance.instance-id=payment-1")
 Wait-Health 8087 "cache-service"
 Wait-Health 8085 "payment-1"
+Wait-Health 8088 "report-service"
 Start-Jar "payment-2" "services\payment-service\target\payment-service-1.0.0.jar" @("--server.port=8185","--apex.instance-id=payment-2","--eureka.instance.instance-id=payment-2")
 Start-Jar "payment-3" "services\payment-service\target\payment-service-1.0.0.jar" @("--server.port=8285","--apex.instance-id=payment-3","--eureka.instance.instance-id=payment-3")
 Start-Jar "gateway-service" "services\gateway-service\target\gateway-service-1.0.0.jar" @()
@@ -150,5 +228,3 @@ $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
 $web = Start-Process -FilePath $npm -ArgumentList "run","dev" -WorkingDirectory (Join-Path $root "webapp") -WindowStyle Hidden -RedirectStandardOutput logs\webapp.log -RedirectStandardError logs\webapp.err.log -PassThru
 Add-Content .run\pids $web.Id
 Write-Log "Shop: http://localhost:5173"
-Write-Log "Customer: $($env:DEMO_CUSTOMER_EMAIL) / $($env:DEMO_CUSTOMER_PASSWORD)"
-Write-Log "Admin: $($env:DEMO_ADMIN_EMAIL) / $($env:DEMO_ADMIN_PASSWORD)"

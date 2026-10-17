@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { api, clearSession, session } from "./api";
+import { keycloakLogoutUrl } from "./keycloak";
 import type { Cart } from "./types";
 
 export default function Layout() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState(session()?.email ?? null);
   const [role, setRole] = useState(session()?.role ?? null);
   const [count, setCount] = useState(0);
@@ -50,7 +50,7 @@ export default function Layout() {
           <>
             <NavLink to="/orders">Orders</NavLink>
             <NavLink to="/account">{email}</NavLink>
-            <button className="ghost" onClick={() => { clearSession(); navigate("/"); }}>Log out</button>
+            <button className="ghost" onClick={() => { clearSession(); window.location.assign(keycloakLogoutUrl()); }}>Log out</button>
           </>
         ) : (
           <NavLink to="/login" className="btn">Log in</NavLink>

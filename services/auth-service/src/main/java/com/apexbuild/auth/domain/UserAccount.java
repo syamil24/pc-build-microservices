@@ -34,8 +34,12 @@ public class UserAccount {
     }
 
     public static UserAccount create(String email, String passwordHash, String role) {
+        return linked(UUID.randomUUID(), email, passwordHash, role);
+    }
+
+    public static UserAccount linked(UUID id, String email, String passwordHash, String role) {
         UserAccount user = new UserAccount();
-        user.id = UUID.randomUUID();
+        user.id = id;
         user.email = email.toLowerCase();
         user.passwordHash = passwordHash;
         user.role = role;

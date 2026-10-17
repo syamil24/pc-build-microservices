@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ApexProperties {
 
     private String jwtSecret = "";
+    private String keycloakIssuer = "";
     private String internalToken = "";
     private boolean demo = true;
     private String instanceId = "local";
@@ -19,6 +20,14 @@ public class ApexProperties {
 
     public void setJwtSecret(String jwtSecret) {
         this.jwtSecret = jwtSecret;
+    }
+
+    public String getKeycloakIssuer() {
+        return keycloakIssuer;
+    }
+
+    public void setKeycloakIssuer(String keycloakIssuer) {
+        this.keycloakIssuer = keycloakIssuer;
     }
 
     public String getInternalToken() {

@@ -12,6 +12,7 @@ flowchart LR
   gw --> pay[Payment]
   gw --> ship[Shipping]
   gw --> disc[Discovery]
+  gw --> report[Report]
   order --> inv
   order --> user
   order --> pay
@@ -24,6 +25,8 @@ flowchart LR
   kafka --> user
   kafka --> order
   kafka --> ship
+  kafka --> report
+  report --> order
   cache --> redis[(Redis)]
   disc --> eureka[Eureka registry]
   auth --> pg[(Postgres schemas)]
@@ -33,15 +36,16 @@ flowchart LR
 
 | Service | Port | Database | Responsibility |
 | --- | --- | --- | --- |
-| gateway-service | 8080 | none | Spring Cloud Gateway, JWT check, CORS, load balance |
+| gateway-service | 8080 | none | Spring Cloud Gateway, Keycloak JWT check, CORS, load balance |
 | discovery-service | 8761 | none | Eureka plus a poller for health, CPU, heap, and disk |
-| auth-service | 8081 | apex_auth | Register, login, refresh tokens |
+| auth-service | 8081 | apex_auth | Accounts. The shop signs in through Keycloak; this service still accepts its own password tokens |
 | user-service | 8082 | apex_user | Profile and addresses |
-| inventory-service | 8083 | apex_inventory | Catalog, PC compatibility, stock reservations |
+| inventory-service | 8083 | apex_inventory | Catalog, PC compatibility, stock reservations. Image files live in MinIO; the row stores `image_url` |
 | order-service | 8084 | apex_order | Cart and checkout saga |
 | payment-service | 8085, 8185, 8285 | apex_payment | CHIP Collect, or the demo till |
 | shipping-service | 8086 | apex_shipping | Emulated courier |
 | cache-service | 8087 | Redis | The only process that talks to Redis |
+| report-service | 8088 | apex_report | Jasper sales PDFs from its own sales facts |
 
 The gateway route `lb://payment-service` spreads calls across the three payment instances. Each response carries `X-Service-Instance`.
 

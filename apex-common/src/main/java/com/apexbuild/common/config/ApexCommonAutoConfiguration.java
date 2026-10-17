@@ -13,6 +13,6 @@ public class ApexCommonAutoConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "apex", name = "jwt-secret")
     JwtService jwtService(ApexProperties properties) {
-        return new JwtService(properties.getJwtSecret());
+        return new JwtService(properties.getJwtSecret(), properties.getKeycloakIssuer());
     }
 }

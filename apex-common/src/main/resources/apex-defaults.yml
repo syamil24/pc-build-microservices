@@ -29,7 +29,7 @@ spring:
   cloud:
     loadbalancer:
       eager-load:
-        clients: inventory-service,payment-service,user-service,cache-service,order-service,shipping-service
+        clients: inventory-service,payment-service,user-service,cache-service,order-service,shipping-service,report-service
 
 eureka:
   client:
@@ -96,6 +96,7 @@ resilience4j:
 
 apex:
   jwt-secret: ${JWT_SECRET:}
+  keycloak-issuer: ${KEYCLOAK_ISSUER:}
   internal-token: ${INTERNAL_SERVICE_TOKEN:}
   demo: ${APEX_DEMO:true}
   instance-id: ${INSTANCE_ID:${spring.application.name}:${server.port}}

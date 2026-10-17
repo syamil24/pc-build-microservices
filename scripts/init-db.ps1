@@ -16,7 +16,7 @@ $env:PGPASSWORD = $env:DB_PASSWORD
 Write-Host "Checking PostgreSQL"
 & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d postgres -v ON_ERROR_STOP=1 -c "SELECT version();"
 if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: could not connect. Check DB_PASSWORD."; exit 1 }
-foreach ($db in @("apex_auth","apex_user","apex_inventory","apex_order","apex_payment","apex_shipping")) {
+foreach ($db in @("apex_auth","apex_user","apex_inventory","apex_order","apex_payment","apex_shipping","apex_report","apex_keycloak")) {
   $exists = & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" 2>$null
   $existsText = ""
   if ($exists) { $existsText = "$exists".Trim() }

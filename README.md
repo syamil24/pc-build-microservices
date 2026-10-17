@@ -8,7 +8,7 @@ The shop UI is at `http://localhost:5173` after the run script. Prices are Malay
 
 - Auth, user, inventory, order, payment, shipping, cache, discovery, and a Spring Cloud Gateway.
 - The gateway load-balances three payment instances.
-- Discovery registers every service in Eureka and polls health, CPU, heap, and free disk. Open **Live ops** in the shop.
+- Discovery registers every service in Eureka and polls health, CPU, heap, and free disk. Admins open **Live ops** from the back office.
 - Redis is reached only through the cache service.
 - Kafka carries registration, payment, and shipping events.
 - Resilience4j circuit breakers sit on every outbound call.
@@ -22,7 +22,7 @@ The shop UI is at `http://localhost:5173` after the run script. Prices are Malay
 - Node.js 22 for the shop
 - Redis and Kafka, installed by the scripts below
 
-## 1. Install Redis and Kafka
+## 1. Install Redis, Kafka, and MinIO
 
 Linux, WSL, or macOS:
 
@@ -30,7 +30,7 @@ Linux, WSL, or macOS:
 bash scripts/install-deps.sh
 ```
 
-The script logs every command to `~/.apex-build/install.log` and prints the failing output if a step breaks. It installs JDK 21, Maven, Redis, and Kafka when they are missing. On macOS it uses Homebrew.
+The script logs every command to `~/.apex-build/install.log` and prints the failing output if a step breaks. It installs JDK 21, Maven, Redis, and Kafka when they are missing, and downloads the MinIO server and `mc` client into `~/.apex-build/minio`. Those binaries are the last community releases that still publish files; newer MinIO tags are source-only. On macOS it uses Homebrew for the language tools.
 
 Windows, from this folder:
 
@@ -77,6 +77,24 @@ bash scripts/apply-schema.sh
 
 The product catalog is loaded by the inventory service the first time it starts (`catalog-seed.json`).
 
+## Keycloak
+
+Sign-in is OpenID Connect through Keycloak, with realm roles `CUSTOMER` and `ADMIN`. The shop uses the authorization code flow and PKCE. Service calls still check the access token, and service-to-service calls still use `X-Internal-Token`.
+
+On macOS or Linux, `scripts/install-keycloak.sh` downloads Keycloak 25.0.4 into `~/.apex-build/keycloak` and writes a Postgres config for a new database, `apex_keycloak`. On this Windows PC the same scripts use the installed copy at `H:\PNB Job\keycloak-25.0.4` and point that process at `apex_keycloak`, so the existing `keycloak` database is left alone. The management port is 9002 because 9000 is MinIO.
+
+`scripts/run-all.ps1` and `scripts/run-all.sh` start Keycloak and then run the realm setup. You can also run the setup on its own after Keycloak is listening on port 8180:
+
+```bash
+bash scripts/setup-keycloak.sh
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-keycloak.ps1
+```
+
+That creates the realm `apex`, the public client `apex-web`, the two roles, and the demo customer and admin. Set `KEYCLOAK_ADMIN_PASSWORD` in `.env` before setup. A fresh database receives the password `run-all` generated. The demo users sign in at the shop with the same emails and passwords as before; the form itself is the Keycloak page.
+
 ## 4. Run everything
 
 Linux, WSL, or macOS, including the 8GB MacBook profile:
@@ -113,9 +131,43 @@ powershell -ExecutionPolicy Bypass -File scripts\pump-catalog.ps1
 
 The generator is `scripts/catalog/emit-sql.js`. It writes `scripts/catalog/catalog.sql`, and the pump applies that file to `apex_inventory` only. Category pages can take up to two minutes to refresh because that list is cached.
 
-## 6. Stop the shop, Redis, and Kafka
+## 6. Upload catalog images
 
-`scripts/kill-all.sh` (macOS and Linux) and `scripts/kill-all.ps1` (Windows) stop the Apex jars, the webapp, Redis, and Kafka, including listeners on the Apex ports. PostgreSQL is left running.
+`scripts/pump-images.sh` and `scripts/pump-images.ps1` draw a 1200 by 900 picture for each pumped SKU, upload it to the MinIO `catalog` bucket, and save the public URL on that product. The shop frame is the same 4:3 ratio, so the picture fills the card on desktop and on a phone without stretching. Products that have no URL keep the colour swatch. Run the catalog pump first, and run this again any time you want to replace the pictures.
+
+macOS or Linux:
+
+```bash
+bash scripts/pump-images.sh
+```
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\pump-images.ps1
+```
+
+## 7. Load demo orders and sales
+
+Sales reports read `apex_report`, which is the report service's own database. The sales pump also writes matching fulfilled orders for the demo customer in `apex_order`. It covers May through October 2026 and every catalog category. Running it again updates the same rows.
+
+macOS or Linux:
+
+```bash
+bash scripts/pump-sales.sh
+```
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\pump-sales.ps1
+```
+
+Start the stack once before the first pump, so auth can seed the demo customer and Flyway can create `order_lines.category_code` and `sales_facts`.
+
+## 8. Stop the shop, Redis, Kafka, and MinIO
+
+`scripts/kill-all.sh` (macOS and Linux) and `scripts/kill-all.ps1` (Windows) stop the Apex jars, the webapp, Redis, Kafka, and MinIO, including listeners on the Apex ports. PostgreSQL is left running.
 
 ```bash
 bash scripts/kill-all.sh
@@ -125,7 +177,7 @@ bash scripts/kill-all.sh
 powershell -ExecutionPolicy Bypass -File scripts\kill-all.ps1
 ```
 
-## 7. Use the shop
+## 9. Use the shop
 
 1. Open `http://localhost:5173`.
 2. Register, or log in with the demo customer from `.env`.
@@ -134,7 +186,7 @@ powershell -ExecutionPolicy Bypass -File scripts\kill-all.ps1
 5. A DDR4 kit on a DDR5 board is rejected. A 550W supply on a hot GPU is rejected.
 6. Add the build to the cart and check out.
 7. On the demo till, choose **Pay now**. The order page then walks the emulated shipment every 15 seconds.
-8. Open **Live ops** to see three payment instances and the health of the rest.
+8. Log in as the demo admin. **Admin** opens product create, edit, and deactivate, the Jasper sales report, and **Live ops**. Customers are turned away from those pages and from `/api/platform`, `/api/reports`, and `/api/catalog/admin`.
 
 Search, category, and min/max price filters are on **Shop**.
 
@@ -173,10 +225,13 @@ docs/ARCHITECTURE.md  flows and ports
 | Payment | 8085, 8185, 8285 |
 | Shipping | 8086 |
 | Cache | 8087 |
+| Report | 8088 |
 | Eureka / discovery | 8761 |
+| Keycloak | 8180 |
 | Shop | 5173 |
 | Kafka | 9092 |
 | Redis | 6379 |
+| MinIO API / console | 9000 / 9001 |
 | Postgres | 5432 |
 
 Swagger UI is on each service, for example `http://localhost:8083/swagger-ui.html`.

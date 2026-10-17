@@ -4,6 +4,7 @@ import com.apexbuild.common.error.ApexException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +28,17 @@ class JwtServiceTest {
     @Test
     void rejectsAShortSecret() {
         assertThrows(IllegalStateException.class, () -> new JwtService("too-short"));
+    }
+
+    @Test
+    void prefersTheAdminRoleWhenBothArePresent() {
+        assertEquals("ADMIN", JwtService.chooseRole(List.of("CUSTOMER", "ADMIN", "default-roles-apex")));
+        assertEquals("CUSTOMER", JwtService.chooseRole(List.of("CUSTOMER")));
+    }
+
+    @Test
+    void decodesUnpaddedBase64Url() {
+        assertEquals("a", new String(JwtService.base64Url("YQ")));
     }
 
     @Test

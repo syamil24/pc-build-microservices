@@ -9,6 +9,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderPage from "./pages/OrderPage";
 import LoginPage from "./pages/LoginPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import RegisterPage from "./pages/RegisterPage";
 import AccountPage from "./pages/AccountPage";
 import DemoPayPage from "./pages/DemoPayPage";
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:id" element={<OrderPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="auth/callback" element={<AuthCallbackPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="pay/demo/:paymentId" element={<DemoPayPage />} />

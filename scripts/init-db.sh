@@ -33,7 +33,7 @@ fi
 log "Checking PostgreSQL at ${DB_HOST}:${DB_PORT}"
 "${PSQL}" -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USERNAME}" -d postgres -v ON_ERROR_STOP=1 -c "SELECT version();"
 
-for db in apex_auth apex_user apex_inventory apex_order apex_payment apex_shipping; do
+for db in apex_auth apex_user apex_inventory apex_order apex_payment apex_shipping apex_report apex_keycloak; do
   exists="$("${PSQL}" -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USERNAME}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db}'")"
   if [[ "${exists}" == "1" ]]; then
     log "Database ${db} already exists"
