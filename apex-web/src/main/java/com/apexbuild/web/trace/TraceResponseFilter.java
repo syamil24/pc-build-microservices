@@ -24,8 +24,12 @@ public class TraceResponseFilter extends OncePerRequestFilter {
         response.setHeader("X-Service-Instance", properties.getInstanceId());
         chain.doFilter(request, response);
         String traceId = MDC.get("traceId");
+        String spanId = MDC.get("spanId");
         if (traceId != null && !traceId.isBlank()) {
             response.setHeader("X-Trace-Id", traceId);
+        }
+        if (spanId != null && !spanId.isBlank()) {
+            response.setHeader("X-Span-Id", spanId);
         }
     }
 }

@@ -10,6 +10,7 @@ import com.apexbuild.web.security.InternalTokenFilter;
 import com.apexbuild.web.security.JwtAuthenticationFilter;
 import com.apexbuild.web.trace.AccessLogFilter;
 import com.apexbuild.web.trace.TraceResponseFilter;
+import brave.baggage.CorrelationScopeCustomizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.springframework.beans.factory.ObjectProvider;
@@ -31,6 +32,12 @@ public class ApexWebAutoConfiguration {
     @Bean
     GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
+    }
+
+    @Bean
+    @ConditionalOnClass(CorrelationScopeCustomizer.class)
+    CorrelationScopeCustomizer traceIdsInLogs() {
+        return TraceLogFields::putTraceIdsInMdc;
     }
 
     @Bean
@@ -99,7 +106,9 @@ public class ApexWebAutoConfiguration {
     @Bean
     FilterRegistrationBean<TraceResponseFilter> traceRegistration(ApexProperties properties) {
         FilterRegistrationBean<TraceResponseFilter> registration = new FilterRegistrationBean<>(new TraceResponseFilter(properties));
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        // ServerHttpObservationFilter is HIGHEST_PRECEDENCE + 1 and clears the trace when it returns.
+        // Stay inside that filter so X-Trace-Id is still on the thread.
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 2);
         return registration;
     }
 
@@ -107,7 +116,7 @@ public class ApexWebAutoConfiguration {
     FilterRegistrationBean<AccessLogFilter> accessLogRegistration(Environment environment) {
         String service = environment.getProperty("spring.application.name", "service");
         FilterRegistrationBean<AccessLogFilter> registration = new FilterRegistrationBean<>(new AccessLogFilter(service));
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 3);
         return registration;
     }
 }
