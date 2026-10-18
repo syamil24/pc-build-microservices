@@ -244,6 +244,8 @@ wait_health 8761 discovery-service
 
 start_jar cache-service services/cache-service/target/cache-service-1.0.0.jar
 start_jar auth-service services/auth-service/target/auth-service-1.0.0.jar
+wait_health 8081 auth-service
+bash scripts/setup-keycloak.sh
 start_jar user-service services/user-service/target/user-service-1.0.0.jar
 start_jar inventory-service services/inventory-service/target/inventory-service-1.0.0.jar
 start_jar order-service services/order-service/target/order-service-1.0.0.jar

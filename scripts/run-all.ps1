@@ -207,6 +207,9 @@ Start-Jar "discovery-service" "services\discovery-service\target\discovery-servi
 Wait-Health 8761 "discovery-service"
 Start-Jar "cache-service" "services\cache-service\target\cache-service-1.0.0.jar" @()
 Start-Jar "auth-service" "services\auth-service\target\auth-service-1.0.0.jar" @()
+Wait-Health 8081 "auth-service"
+& powershell -File (Join-Path $root "scripts\setup-keycloak.ps1")
+if ($LASTEXITCODE -ne 0) { exit 1 }
 Start-Jar "user-service" "services\user-service\target\user-service-1.0.0.jar" @()
 Start-Jar "inventory-service" "services\inventory-service\target\inventory-service-1.0.0.jar" @()
 Start-Jar "order-service" "services\order-service\target\order-service-1.0.0.jar" @()

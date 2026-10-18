@@ -22,11 +22,20 @@ $cmd = Get-Command psql -ErrorAction SilentlyContinue
 if ($cmd) { $psql = $cmd.Source } else { $psql = "C:\Program Files\PostgreSQL\17\bin\psql.exe" }
 if ((Test-Path $psql) -and $env:DB_PASSWORD) {
   $env:PGPASSWORD = $env:DB_PASSWORD
-  $customer = & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('$($env:DEMO_CUSTOMER_EMAIL)')"
-  $admin = & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('$($env:DEMO_ADMIN_EMAIL)')"
-  if ($customer) { $env:APEX_CUSTOMER_ID = (($customer | Out-String) -replace '\s', '') }
-  if ($admin) { $env:APEX_ADMIN_ID = (($admin | Out-String) -replace '\s', '') }
-  Write-Log ("Shop ids: customer " + $(if ($env:APEX_CUSTOMER_ID) { "found" } else { "missing" }) + ", admin " + $(if ($env:APEX_ADMIN_ID) { "found" } else { "missing" }))
+  $table = & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d apex_auth -tAc "SELECT to_regclass('public.users')"
+  $tableName = "$table".Trim()
+  if ($LASTEXITCODE -ne 0) {
+    Write-Log "Could not read apex_auth. Continuing without shop account ids."
+  } elseif (-not $tableName -or $tableName -eq "null") {
+    Write-Log "apex_auth.users does not exist yet. Realm setup continues, and account ids are linked after auth-service starts."
+  } else {
+    $customer = & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('$($env:DEMO_CUSTOMER_EMAIL)')"
+    $admin = & $psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USERNAME -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('$($env:DEMO_ADMIN_EMAIL)')"
+    if ($LASTEXITCODE -ne 0) { throw "Could not read shop accounts from apex_auth.users" }
+    if ($customer) { $env:APEX_CUSTOMER_ID = (($customer | Out-String) -replace '\s', '') }
+    if ($admin) { $env:APEX_ADMIN_ID = (($admin | Out-String) -replace '\s', '') }
+    Write-Log ("Shop ids: customer " + $(if ($env:APEX_CUSTOMER_ID) { "found" } else { "missing" }) + ", admin " + $(if ($env:APEX_ADMIN_ID) { "found" } else { "missing" }))
+  }
 }
 
 Write-Log "Configuring the apex realm"

@@ -20,9 +20,14 @@ if [[ -z "${KEYCLOAK_ADMIN_PASSWORD:-}" ]]; then
 fi
 if command -v psql >/dev/null 2>&1 && [[ -n "${DB_PASSWORD:-}" ]]; then
   export PGPASSWORD="${DB_PASSWORD}"
-  APEX_CUSTOMER_ID="$(psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('${DEMO_CUSTOMER_EMAIL}')" | tr -d '[:space:]')"
-  APEX_ADMIN_ID="$(psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('${DEMO_ADMIN_EMAIL}')" | tr -d '[:space:]')"
-  export APEX_CUSTOMER_ID APEX_ADMIN_ID
+  users_table="$(psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" -d apex_auth -tAc "SELECT to_regclass('public.users')" 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ "${users_table}" == "users" || "${users_table}" == "public.users" ]]; then
+    APEX_CUSTOMER_ID="$(psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('${DEMO_CUSTOMER_EMAIL}')" | tr -d '[:space:]')"
+    APEX_ADMIN_ID="$(psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" -d apex_auth -tAc "SELECT id FROM users WHERE lower(email) = lower('${DEMO_ADMIN_EMAIL}')" | tr -d '[:space:]')"
+    export APEX_CUSTOMER_ID APEX_ADMIN_ID
+  else
+    echo "apex_auth.users does not exist yet. Realm setup continues, and account ids are linked after auth-service starts."
+  fi
 fi
 echo "Configuring the apex realm"
 node scripts/keycloak/setup-realm.js
