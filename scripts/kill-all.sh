@@ -14,6 +14,10 @@ stop_pid() {
   fi
 }
 
+if [[ -f "${ROOT}/.run/log-roll.pid" ]]; then
+  stop_pid "$(tr -d '[:space:]' < "${ROOT}/.run/log-roll.pid")"
+  rm -f "${ROOT}/.run/log-roll.pid"
+fi
 if [[ -f "${ROOT}/.run/pids" ]]; then
   while read -r pid; do
     stop_pid "${pid}"

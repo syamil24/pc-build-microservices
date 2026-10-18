@@ -6,6 +6,7 @@ set -Eeuo pipefail
 LOG_DIR="${HOME}/.apex-build"
 LOG_FILE="${LOG_DIR}/install.log"
 mkdir -p "${LOG_DIR}"
+bash "$(cd "$(dirname "$0")" && pwd)/log-roll.sh" || true
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "${LOG_FILE}"; }
 on_err() {

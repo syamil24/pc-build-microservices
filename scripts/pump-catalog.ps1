@@ -4,6 +4,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 $logDir = Join-Path $env:USERPROFILE ".apex-build"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\log-roll.ps1")
 $log = Join-Path $logDir "pump-catalog.log"
 function Write-Log($msg) {
   $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-ddTHH:mm:ss"), $msg

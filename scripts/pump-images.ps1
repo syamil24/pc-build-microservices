@@ -4,6 +4,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 $logDir = Join-Path $env:USERPROFILE ".apex-build"
 New-Item -ItemType Directory -Force -Path $logDir, logs | Out-Null
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\log-roll.ps1")
 $log = Join-Path $logDir "pump-images.log"
 function Write-Log($msg) {
   $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-ddTHH:mm:ss"), $msg
@@ -56,13 +57,15 @@ try {
     $data = Join-Path $env:USERPROFILE ".apex-build\minio-data"
     New-Item -ItemType Directory -Force -Path $data | Out-Null
     Write-Log "Starting MinIO"
-    Start-Process -FilePath $minio -ArgumentList @("server", $data, "--address", "127.0.0.1:$($env:MINIO_API_PORT)", "--console-address", "127.0.0.1:$($env:MINIO_CONSOLE_PORT)") -WindowStyle Hidden -RedirectStandardOutput logs\minio.log -RedirectStandardError logs\minio.err.log
+    $follow = Join-Path $root "scripts\log-follow.ps1"
+    $launch = "-NoProfile -ExecutionPolicy Bypass -File `"$follow`" -Name minio -FilePath `"$minio`" server `"$data`" --address 127.0.0.1:$($env:MINIO_API_PORT) --console-address 127.0.0.1:$($env:MINIO_CONSOLE_PORT)"
+    Start-Process -FilePath "powershell.exe" -ArgumentList $launch -WindowStyle Hidden
     $ready = $false
     foreach ($i in 1..20) {
       Start-Sleep -Seconds 1
       if (Get-NetTCPConnection -LocalPort $env:MINIO_API_PORT -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
     }
-    if (-not $ready) { throw "MinIO did not start. See logs/minio.err.log" }
+    if (-not $ready) { throw "MinIO did not start. See logs/minio.log" }
   } else {
     Write-Log "MinIO is already up"
   }

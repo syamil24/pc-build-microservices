@@ -2,8 +2,39 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
-New-Item -ItemType Directory -Force -Path logs, .run | Out-Null
-function Write-Log($msg) { Write-Host ("[{0}] {1}" -f (Get-Date -Format "HH:mm:ss"), $msg) }
+New-Item -ItemType Directory -Force -Path logs, logs\archive, .run | Out-Null
+$script:toolPids = @()
+function Write-Log($msg) {
+  $line = "[{0}] {1}" -f (Get-Date -Format "HH:mm:ss"), $msg
+  Write-Host $line
+  Add-Content -Path (Join-Path $root "logs\run-all.log") -Value $line -Encoding utf8
+}
+function Format-ProcessArg([string]$value) {
+  if ($value -match '[\s"]') { return '"' + ($value -replace '"', '\"') + '"' }
+  return $value
+}
+function Start-Logged($name, $file, $work, $argList) {
+  $follow = Join-Path $root "scripts\log-follow.ps1"
+  $parts = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $follow, "-Name", $name, "-FilePath", $file)
+  if ($work) { $parts += @("-WorkingDirectory", $work) }
+  if ($argList) { $parts += $argList }
+  $command = ($parts | ForEach-Object { Format-ProcessArg $_ }) -join " "
+  $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $command -WindowStyle Hidden -PassThru
+  $script:toolPids += $proc.Id
+}
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\log-roll.ps1")
+$rollPidFile = Join-Path $root ".run\log-roll.pid"
+$rollRunning = $false
+if (Test-Path $rollPidFile) {
+  $oldRoll = (Get-Content $rollPidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+  if ($oldRoll -match '^\d+$' -and (Get-Process -Id ([int]$oldRoll) -ErrorAction SilentlyContinue)) { $rollRunning = $true; $script:toolPids += [int]$oldRoll }
+}
+if (-not $rollRunning) {
+  $rollArgs = (@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "scripts\log-roll.ps1"), "-Watch") | ForEach-Object { Format-ProcessArg $_ }) -join " "
+  $roll = Start-Process -FilePath "powershell.exe" -ArgumentList $rollArgs -WindowStyle Hidden -PassThru
+  Set-Content -Path $rollPidFile -Value $roll.Id
+  $script:toolPids += $roll.Id
+}
 
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 Get-Content .env | ForEach-Object {
@@ -74,7 +105,7 @@ if (Test-Path $redisCli) {
 }
 if (-not $pong) {
   Write-Log "Starting Redis"
-  Start-Process -FilePath $redis -ArgumentList "--port","6379","--maxmemory","64mb","--maxmemory-policy","allkeys-lru","--bind","127.0.0.1" -WindowStyle Hidden -RedirectStandardOutput logs\redis.log -RedirectStandardError logs\redis.err.log
+  Start-Logged "redis" $redis "" @("--port","6379","--maxmemory","64mb","--maxmemory-policy","allkeys-lru","--bind","127.0.0.1")
   Start-Sleep -Seconds 2
 } else {
   Write-Log "Redis is already up"
@@ -106,7 +137,6 @@ log.retention.hours=24
 "@ | Set-Content $cfg
   Write-Log "Starting Kafka"
   $cp = "$kafkaHome\libs\*"
-  $log4j = (Join-Path $kafkaHome "config\log4j.properties") -replace '\\','/'
   $meta = Join-Path $root ".run\kafka-logs\meta.properties"
   if (-not (Test-Path $meta)) {
     New-Item -ItemType Directory -Force -Path (Split-Path $meta) | Out-Null
@@ -114,16 +144,16 @@ log.retention.hours=24
     & java -Xmx128m -cp $cp kafka.tools.StorageTool format -t $clusterId -c $cfg
     if ($LASTEXITCODE -ne 0) { Write-Log "ERROR: could not format Kafka storage"; exit 1 }
   }
-  $kafkaLogDir = (Join-Path $root ".run\kafka-file-logs") -replace '\\','/'
-  New-Item -ItemType Directory -Force -Path (Join-Path $root ".run\kafka-file-logs") | Out-Null
+  $kafkaLogDir = (Join-Path $root "logs") -replace '\\','/'
+  $log4j = (Join-Path $root "scripts\kafka\log4j.properties") -replace '\\','/'
   $kafkaArgs = @("-Xms128m","-Xmx256m","-Dkafka.logs.dir=$kafkaLogDir","-Dlog4j.configuration=file:$log4j","-cp",$cp,"kafka.Kafka",$cfg)
-  Start-Process -FilePath "java" -ArgumentList $kafkaArgs -WindowStyle Hidden -RedirectStandardOutput logs\kafka.log -RedirectStandardError logs\kafka.err.log
+  Start-Process -FilePath "java" -ArgumentList $kafkaArgs -WindowStyle Hidden -RedirectStandardOutput "NUL" -RedirectStandardError "logs\kafka.err.log"
   $ready = $false
   foreach ($i in 1..20) {
     Start-Sleep -Seconds 2
     if (Get-NetTCPConnection -LocalPort 9092 -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
   }
-  if (-not $ready) { Write-Log "ERROR: Kafka did not start. See logs/kafka.err.log"; exit 1 }
+  if (-not $ready) { Write-Log "ERROR: Kafka did not start. See logs/kafka.log and logs/kafka.err.log"; exit 1 }
 }
 
 $minioHome = Join-Path $env:USERPROFILE ".apex-build\minio"
@@ -135,13 +165,13 @@ if (-not (Get-NetTCPConnection -LocalPort $env:MINIO_API_PORT -State Listen -Err
   $minioData = Join-Path $env:USERPROFILE ".apex-build\minio-data"
   New-Item -ItemType Directory -Force -Path $minioData | Out-Null
   Write-Log "Starting MinIO"
-  Start-Process -FilePath $minio -ArgumentList @("server", $minioData, "--address", "127.0.0.1:$($env:MINIO_API_PORT)", "--console-address", "127.0.0.1:$($env:MINIO_CONSOLE_PORT)") -WindowStyle Hidden -RedirectStandardOutput logs\minio.log -RedirectStandardError logs\minio.err.log
+  Start-Logged "minio" $minio "" @("server", $minioData, "--address", "127.0.0.1:$($env:MINIO_API_PORT)", "--console-address", "127.0.0.1:$($env:MINIO_CONSOLE_PORT)")
   $ready = $false
   foreach ($i in 1..20) {
     Start-Sleep -Seconds 1
     if (Get-NetTCPConnection -LocalPort $env:MINIO_API_PORT -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
   }
-  if (-not $ready) { Write-Log "ERROR: MinIO did not start. See logs/minio.err.log"; exit 1 }
+  if (-not $ready) { Write-Log "ERROR: MinIO did not start. See logs/minio.log"; exit 1 }
 } else {
   Write-Log "MinIO is already up"
 }
@@ -155,13 +185,13 @@ if (-not (Get-NetTCPConnection -LocalPort 8180 -State Listen -ErrorAction Silent
   $env:KC_BOOTSTRAP_ADMIN_USERNAME = $env:KEYCLOAK_ADMIN
   $env:KC_BOOTSTRAP_ADMIN_PASSWORD = $env:KEYCLOAK_ADMIN_PASSWORD
   $env:KEYCLOAK_ADMIN = $env:KEYCLOAK_ADMIN
-  Start-Process -FilePath $kcBat -ArgumentList @(
+  Start-Logged "keycloak" $kcBat $kcHome @(
     "start-dev","--http-port=8180","--http-management-port=9002",
     "--db=postgres",
     "--db-url=jdbc:postgresql://$($env:DB_HOST):$($env:DB_PORT)/apex_keycloak",
     "--db-username=$($env:DB_USERNAME)",
     "--db-password=$($env:DB_PASSWORD)"
-  ) -WorkingDirectory $kcHome -WindowStyle Hidden -RedirectStandardOutput logs\keycloak.log -RedirectStandardError logs\keycloak.err.log
+  )
   $ready = $false
   foreach ($i in 1..40) {
     Start-Sleep -Seconds 2
@@ -171,7 +201,7 @@ if (-not (Get-NetTCPConnection -LocalPort 8180 -State Listen -ErrorAction Silent
       break
     } catch { }
   }
-  if (-not $ready) { Write-Log "ERROR: Keycloak did not start. See logs/keycloak.err.log"; exit 1 }
+  if (-not $ready) { Write-Log "ERROR: Keycloak did not start. See logs/keycloak.log"; exit 1 }
 } else {
   Write-Log "Keycloak is already up"
 }
@@ -187,8 +217,8 @@ if ($args -notcontains "--no-build") {
 $pids = @()
 function Start-Jar($name, $jar, $extra) {
   Write-Log "Starting $name"
-  $javaArgs = @($jvm.Split(" ")) + @("-jar", $jar) + $extra
-  $proc = Start-Process -FilePath "java" -ArgumentList $javaArgs -WindowStyle Hidden -RedirectStandardOutput "logs\$name.log" -RedirectStandardError "logs\$name.err.log" -PassThru
+  $javaArgs = @($jvm.Split(" ")) + @("-DLOG_NAME=$name", "-jar", $jar) + $extra
+  $proc = Start-Process -FilePath "java" -ArgumentList $javaArgs -WindowStyle Hidden -RedirectStandardOutput "NUL" -RedirectStandardError "logs\$name.err.log" -PassThru
   $script:pids += $proc.Id
 }
 function Wait-Health($port, $name) {
@@ -199,7 +229,7 @@ function Wait-Health($port, $name) {
       return
     } catch { Start-Sleep -Seconds 2 }
   }
-  Write-Log "ERROR: $name did not become healthy. See logs/$name.err.log"
+  Write-Log "ERROR: $name did not become healthy. See logs/$name.log and logs/$name.err.log"
   exit 1
 }
 
@@ -223,11 +253,11 @@ Start-Jar "payment-2" "services\payment-service\target\payment-service-1.0.0.jar
 Start-Jar "payment-3" "services\payment-service\target\payment-service-1.0.0.jar" @("--server.port=8285","--apex.instance-id=payment-3","--eureka.instance.instance-id=payment-3")
 Start-Jar "gateway-service" "services\gateway-service\target\gateway-service-1.0.0.jar" @()
 Wait-Health 8080 "gateway-service"
-$pids | Set-Content .run\pids
+@($script:toolPids + $pids) | Set-Content .run\pids
 
 if (-not (Test-Path "webapp\node_modules")) { Push-Location webapp; npm install; Pop-Location }
 Write-Log "Starting webapp"
 $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
-$web = Start-Process -FilePath $npm -ArgumentList "run","dev" -WorkingDirectory (Join-Path $root "webapp") -WindowStyle Hidden -RedirectStandardOutput logs\webapp.log -RedirectStandardError logs\webapp.err.log -PassThru
-Add-Content .run\pids $web.Id
+Start-Logged "webapp" $npm (Join-Path $root "webapp") @("run","dev")
+Add-Content .run\pids $script:toolPids[-1]
 Write-Log "Shop: http://localhost:5173"

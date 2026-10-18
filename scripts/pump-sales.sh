@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT}"
 LOG="${HOME}/.apex-build/pump-sales.log"
 mkdir -p "$(dirname "${LOG}")"
+bash scripts/log-roll.sh || true
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "${LOG}"; }
 on_err() { log "ERROR at line $1: $2"; exit 1; }
 trap 'on_err "$LINENO" "$BASH_COMMAND"' ERR

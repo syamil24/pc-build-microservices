@@ -5,8 +5,17 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT}"
-mkdir -p logs .run
+mkdir -p logs logs/archive .run
 LOG="logs/run-all.log"
+bash scripts/log-roll.sh || true
+ROLL_PID=""
+if [[ -f .run/log-roll.pid ]] && kill -0 "$(tr -d '[:space:]' < .run/log-roll.pid)" 2>/dev/null; then
+  ROLL_PID="$(tr -d '[:space:]' < .run/log-roll.pid)"
+else
+  nohup bash scripts/log-roll.sh --watch >/dev/null 2>&1 &
+  ROLL_PID=$!
+  echo "${ROLL_PID}" > .run/log-roll.pid
+fi
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "${LOG}"; }
 on_err() { log "ERROR at line $1: $2"; exit 1; }
 trap 'on_err "$LINENO" "$BASH_COMMAND"' ERR
@@ -98,8 +107,7 @@ start_minio() {
   mkdir -p "${HOME}/.apex-build/minio-data" logs
   log "Starting MinIO"
   MINIO_ROOT_USER="${MINIO_ROOT_USER}" MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
-    "${bin}" server "${HOME}/.apex-build/minio-data" --address "127.0.0.1:${port}" --console-address "127.0.0.1:${console}" \
-    >>logs/minio.log 2>&1 &
+    bash scripts/log-follow.sh minio -- "${bin}" server "${HOME}/.apex-build/minio-data" --address "127.0.0.1:${port}" --console-address "127.0.0.1:${console}" &
   echo $! >> .run/pids
   local i
   for i in $(seq 1 20); do
@@ -119,8 +127,8 @@ start_redis() {
   fi
   log "Starting Redis"
   if command -v redis-server >/dev/null 2>&1; then
-    redis-server --daemonize yes --port "${REDIS_PORT:-6379}" --maxmemory 64mb --maxmemory-policy allkeys-lru --bind 127.0.0.1 --protected-mode yes \
-      >>logs/redis.log 2>&1 || true
+    bash scripts/log-follow.sh redis -- redis-server --port "${REDIS_PORT:-6379}" --maxmemory 64mb --maxmemory-policy allkeys-lru --bind 127.0.0.1 --protected-mode yes &
+    echo $! >> .run/pids
   elif command -v brew >/dev/null 2>&1; then
     brew services start redis >>logs/redis.log 2>&1 || true
   fi
@@ -160,16 +168,19 @@ EOF
   if [[ ! -f "${ROOT}/.run/kafka-logs/meta.properties" ]]; then
     mkdir -p "${ROOT}/.run/kafka-logs"
     CLUSTER_ID="$("${KAFKA_HOME}/bin/kafka-storage.sh" random-uuid)"
-    "${KAFKA_HOME}/bin/kafka-storage.sh" format -t "${CLUSTER_ID}" -c "${CFG}" >>logs/kafka.log 2>&1
+    "${KAFKA_HOME}/bin/kafka-storage.sh" format -t "${CLUSTER_ID}" -c "${CFG}" >>logs/kafka.err.log 2>&1
   fi
   export KAFKA_HEAP_OPTS="-Xms128m -Xmx256m"
-  nohup "${KAFKA_HOME}/bin/kafka-server-start.sh" "${CFG}" >>logs/kafka.log 2>&1 &
+  LOG_DIR="${ROOT}/logs" \
+    KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:${ROOT}/scripts/kafka/log4j.properties" \
+    EXTRA_ARGS="-name kafkaServer" \
+    nohup "${KAFKA_HOME}/bin/kafka-server-start.sh" "${CFG}" >/dev/null 2>>logs/kafka.err.log &
   echo $! > .run/kafka.pid
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     port_open 9092 && return
     sleep 2
   done
-  log "ERROR: Kafka did not open port 9092. See logs/kafka.log"
+  log "ERROR: Kafka did not open port 9092. See logs/kafka.log and logs/kafka.err.log"
   exit 1
 }
 
@@ -178,7 +189,7 @@ start_jar() {
   shift 2
   log "Starting ${name}"
   # shellcheck disable=SC2086
-  nohup java ${JVM} -jar "${jar}" "$@" >>"logs/${name}.log" 2>&1 &
+  nohup java ${JVM} -DLOG_NAME="${name}" -jar "${jar}" "$@" >/dev/null 2>>"logs/${name}.err.log" &
   echo $! >> .run/pids
 }
 
@@ -191,11 +202,12 @@ wait_health() {
     fi
     sleep 2
   done
-  log "ERROR: ${name} did not become healthy. See logs/${name}.log"
+  log "ERROR: ${name} did not become healthy. See logs/${name}.log and logs/${name}.err.log"
   exit 1
 }
 
 : > .run/pids
+if [[ -n "${ROLL_PID}" ]]; then echo "${ROLL_PID}" >> .run/pids; fi
 start_keycloak() {
   local home bin
   bash scripts/install-keycloak.sh
@@ -208,11 +220,12 @@ start_keycloak() {
     mkdir -p logs
     KC_BOOTSTRAP_ADMIN_USERNAME="${KEYCLOAK_ADMIN}" KC_BOOTSTRAP_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
       KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN}" KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
+      bash scripts/log-follow.sh keycloak --cwd "${home}" -- \
       "${bin}" start-dev --http-port=8180 --http-management-port=9002 \
       --db=postgres \
       --db-url="jdbc:postgresql://${DB_HOST:-localhost}:${DB_PORT:-5432}/apex_keycloak" \
       --db-username="${DB_USERNAME:-postgres}" \
-      --db-password="${DB_PASSWORD}" >>logs/keycloak.log 2>&1 &
+      --db-password="${DB_PASSWORD}" &
     echo $! >> .run/pids
     local i
     for i in $(seq 1 40); do
@@ -265,7 +278,8 @@ if [[ ! -d webapp/node_modules ]]; then
   (cd webapp && npm install)
 fi
 log "Starting webapp on http://localhost:5173"
-(cd webapp && nohup npm run dev >>../logs/webapp.log 2>&1 & echo $! >> ../.run/pids)
+bash scripts/log-follow.sh webapp --cwd webapp -- npm run dev &
+echo $! >> .run/pids
 
 log "Apex Build is up."
 log "Shop:      http://localhost:5173"

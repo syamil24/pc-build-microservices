@@ -1,8 +1,10 @@
 # Installs Redis and Kafka for the Windows machine that is driving this repo.
 # JDK, Maven, Node, and PostgreSQL are expected to already be installed.
 $ErrorActionPreference = "Stop"
+$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $logDir = Join-Path $env:USERPROFILE ".apex-build"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\log-roll.ps1")
 $log = Join-Path $logDir "install.log"
 function Write-Log($msg) {
   $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-ddTHH:mm:ss"), $msg

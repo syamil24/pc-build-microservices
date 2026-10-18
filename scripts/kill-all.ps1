@@ -5,6 +5,16 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $tools = Join-Path $env:USERPROFILE ".apex-build"
 function Write-Log($msg) { Write-Host ("[{0}] {1}" -f (Get-Date -Format "yyyy-MM-ddTHH:mm:ss"), $msg) }
 
+$rollPidFile = Join-Path $root ".run\log-roll.pid"
+if (Test-Path $rollPidFile) {
+  $rollPid = Get-Content $rollPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($rollPid -match '^\d+$') {
+    Stop-Process -Id ([int]$rollPid) -Force -ErrorAction SilentlyContinue
+    Write-Log "Stopped log roll $rollPid"
+  }
+  Remove-Item $rollPidFile -Force -ErrorAction SilentlyContinue
+}
+
 $pidFile = Join-Path $root ".run\pids"
 if (Test-Path $pidFile) {
   Get-Content $pidFile | ForEach-Object {

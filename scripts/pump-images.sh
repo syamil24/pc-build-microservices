@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT}"
 LOG_DIR="${HOME}/.apex-build"
 mkdir -p "${LOG_DIR}" logs
+bash scripts/log-roll.sh || true
 LOG_FILE="${LOG_DIR}/pump-images.log"
 log() {
   printf '[%s] %s\n' "$(date +%Y-%m-%dT%H:%M:%S)" "$*" | tee -a "${LOG_FILE}"
@@ -70,9 +71,8 @@ if ! port_open "${MINIO_API_PORT}"; then
   mkdir -p "${HOME}/.apex-build/minio-data"
   log "Starting MinIO"
   MINIO_ROOT_USER="${MINIO_ROOT_USER}" MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
-    "${MINIO_HOME}/minio" server "${HOME}/.apex-build/minio-data" \
-    --address "127.0.0.1:${MINIO_API_PORT}" --console-address "127.0.0.1:${MINIO_CONSOLE_PORT}" \
-    >>logs/minio.log 2>&1 &
+    bash scripts/log-follow.sh minio -- "${MINIO_HOME}/minio" server "${HOME}/.apex-build/minio-data" \
+    --address "127.0.0.1:${MINIO_API_PORT}" --console-address "127.0.0.1:${MINIO_CONSOLE_PORT}" &
   echo $! >> .run/pids
   ready=0
   for _ in $(seq 1 20); do

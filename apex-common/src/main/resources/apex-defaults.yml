@@ -63,6 +63,7 @@ management:
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [trace=%X{traceId:-}] [span=%X{spanId:-}] %logger{36} - %msg%n"
+  # Today's file is logs/<service>.log. Older days are logs/archive, kept 90 days.
   level:
     com.apexbuild: INFO
 
