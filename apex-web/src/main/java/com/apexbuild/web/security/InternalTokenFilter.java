@@ -1,6 +1,7 @@
 package com.apexbuild.web.security;
 
 import com.apexbuild.common.config.ApexProperties;
+import com.apexbuild.web.trace.AccessLogFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +34,8 @@ public class InternalTokenFilter extends OncePerRequestFilter {
                 var authentication = new UsernamePasswordAuthenticationToken("internal", null,
                         List.of(new SimpleGrantedAuthority("ROLE_INTERNAL")));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                request.setAttribute(AccessLogFilter.USER_ID, "internal");
+                request.setAttribute(AccessLogFilter.ROLE, "INTERNAL");
             }
         }
         chain.doFilter(request, response);

@@ -2,6 +2,7 @@ package com.apexbuild.web.security;
 
 import com.apexbuild.common.security.AuthenticatedUser;
 import com.apexbuild.common.security.JwtService;
+import com.apexbuild.web.trace.AccessLogFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +34,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 var authentication = new UsernamePasswordAuthenticationToken(principal, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + claims.role())));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                request.setAttribute(AccessLogFilter.USER_ID, claims.userId() == null ? null : claims.userId().toString());
+                request.setAttribute(AccessLogFilter.ROLE, claims.role());
             } catch (RuntimeException ex) {
                 SecurityContextHolder.clearContext();
             }

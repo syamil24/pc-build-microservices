@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.web.client.RestClientBuilderConfigurer;
+import org.springframework.core.env.Environment;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -103,8 +104,9 @@ public class ApexWebAutoConfiguration {
     }
 
     @Bean
-    FilterRegistrationBean<AccessLogFilter> accessLogRegistration() {
-        FilterRegistrationBean<AccessLogFilter> registration = new FilterRegistrationBean<>(new AccessLogFilter());
+    FilterRegistrationBean<AccessLogFilter> accessLogRegistration(Environment environment) {
+        String service = environment.getProperty("spring.application.name", "service");
+        FilterRegistrationBean<AccessLogFilter> registration = new FilterRegistrationBean<>(new AccessLogFilter(service));
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return registration;
     }
