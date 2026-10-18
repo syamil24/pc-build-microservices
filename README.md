@@ -12,7 +12,8 @@ The shop UI is at `http://localhost:5173` after the run script. Prices are Malay
 - Redis is reached only through the cache service.
 - Kafka carries registration, payment, and shipping events.
 - Resilience4j circuit breakers sit on every outbound call.
-- Logs include `traceId` and `spanId` so one checkout can be followed across services.
+- Each API call is one log line with the shopper and the action. The same trace id runs from the gateway through the service that handled the call.
+- Today's log stays in `logs/`. Older days move to `logs/archive` and are kept for 90 days.
 - Dockerfiles are present for a later container deploy. The run scripts use fat jars.
 
 ## Prerequisites
@@ -69,7 +70,7 @@ Windows:
 powershell -ExecutionPolicy Bypass -File scripts\init-db.ps1
 ```
 
-This creates `apex_auth`, `apex_user`, `apex_inventory`, `apex_order`, `apex_payment`, and `apex_shipping`. Flyway creates the tables when the services start. To apply the SQL without booting the apps:
+This creates `apex_auth`, `apex_user`, `apex_inventory`, `apex_order`, `apex_payment`, `apex_shipping`, `apex_report`, and `apex_keycloak`. Flyway creates the tables when the services start. To apply the SQL without booting the apps:
 
 ```bash
 bash scripts/apply-schema.sh
@@ -165,9 +166,9 @@ powershell -ExecutionPolicy Bypass -File scripts\pump-sales.ps1
 
 Start the stack once before the first pump, so auth can seed the demo customer and Flyway can create `order_lines.category_code` and `sales_facts`.
 
-## 8. Stop the shop, Redis, Kafka, and MinIO
+## 8. Stop the shop, Redis, Kafka, Keycloak, and MinIO
 
-`scripts/kill-all.sh` (macOS and Linux) and `scripts/kill-all.ps1` (Windows) stop the Apex jars, the webapp, Redis, Kafka, and MinIO, including listeners on the Apex ports. PostgreSQL is left running.
+`scripts/kill-all.sh` (macOS and Linux) and `scripts/kill-all.ps1` (Windows) stop the Apex jars, the webapp, Redis, Kafka, Keycloak, and MinIO, including listeners on the Apex ports. PostgreSQL is left running.
 
 ```bash
 bash scripts/kill-all.sh
@@ -190,6 +191,34 @@ powershell -ExecutionPolicy Bypass -File scripts\kill-all.ps1
 
 Search, category, and min/max price filters are on **Shop**.
 
+## Logs
+
+`logs/<service>.log` is today's file. The gateway writes a line when a request arrives and another when it finishes. Each service writes one line with the user, the role, and the action. Match `[trace=…]` across those files to follow one checkout. The span id changes for each step.
+
+At midnight the file moves to `logs/archive/<service>.yyyy-MM-dd.log`. Archives older than 90 days are deleted. Redis, MinIO, Keycloak, the shop, and Kafka's text log use the same folder. The three payment processes log as `payment-1`, `payment-2`, and `payment-3`.
+
+## Watch Kafka and Redis
+
+Run these while the stack is up.
+
+macOS or Linux:
+
+```bash
+bash scripts/monitor-kafka.sh
+bash scripts/monitor-redis.sh
+```
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\monitor-kafka.ps1
+powershell -ExecutionPolicy Bypass -File scripts\monitor-redis.ps1
+```
+
+The Kafka script prints the cluster, topics, partitions, offsets, consumer lag, partition size, the tail of `logs/kafka.log`, and the latest events. It calls Java with `libs*` because the Windows `kafka-*.bat` tools exceed the command-line limit. Add `--watch` or `-Watch` to refresh the live sections every 5 seconds. The event list is printed on a single run.
+
+The Redis script prints memory and the first 100 keys with their values. A value longer than 500 characters is shortened.
+
 ## Tests and the agent loop
 
 ```bash
@@ -208,8 +237,8 @@ apex-common/          shared records, JWT, topics
 apex-web/             security, circuit breaker, cache client, tracing
 services/*            one Spring Boot service each, with a Dockerfile
 webapp/               React shop
-scripts/              install, database, run, smoke, agent pipeline
-docs/ARCHITECTURE.md  flows and ports
+scripts/              install, database, run, pumps, monitors
+ARCHITECTURE.md       services, checkout, Kafka, and traces
 .cursor/rules/        contributor rules
 ```
 

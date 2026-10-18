@@ -1,5 +1,7 @@
 # Architecture
 
+The full write-up is [ARCHITECTURE.md](../ARCHITECTURE.md) at the repo root. The map below is the short version.
+
 Apex Build is a PC-builder shop. The browser talks only to the gateway. Each bounded context has its own PostgreSQL database, and services talk over HTTP or Kafka.
 
 ```mermaid
