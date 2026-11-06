@@ -22,8 +22,7 @@ release_compose_ports() {
 
 start_shop() {
   mkdir -p logs
-  setsid bash scripts/run-all.sh --no-build < /dev/null >> logs/run-all.log 2>&1 &
-  wait "$!"
+  APEX_DETACH=1 bash scripts/run-all.sh --no-build
 }
 
 case "${cmd}" in

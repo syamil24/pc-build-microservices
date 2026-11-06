@@ -97,11 +97,37 @@ port_open() {
   fi
 }
 
+# APEX_DETACH=1 puts each service in its own session so a GitHub Actions
+# job can exit without killing the jars.
+detach() {
+  if [[ "${APEX_DETACH:-}" == "1" ]]; then
+    setsid "$@" < /dev/null &
+  else
+    "$@" &
+  fi
+}
+
+installed_tool() {
+  local relative="$1" candidate
+  if [[ -e "${HOME}/${relative}" ]]; then
+    printf '%s\n' "${HOME}/${relative}"
+    return 0
+  fi
+  for candidate in /root/${relative} /home/*/${relative}; do
+    if [[ -e "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 start_minio() {
   local port="${MINIO_API_PORT:-9000}"
   local console="${MINIO_CONSOLE_PORT:-9001}"
-  local home="${HOME}/.apex-build/minio"
-  local bin="${home}/minio"
+  local home bin
+  home="$(installed_tool .apex-build/minio || true)"
+  bin="${home}/minio"
   if port_open "${port}"; then
     log "MinIO is already up"
     return
@@ -113,7 +139,7 @@ start_minio() {
   mkdir -p "${HOME}/.apex-build/minio-data" logs
   log "Starting MinIO"
   MINIO_ROOT_USER="${MINIO_ROOT_USER}" MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
-    bash scripts/log-follow.sh minio -- "${bin}" server "${HOME}/.apex-build/minio-data" --address "127.0.0.1:${port}" --console-address "127.0.0.1:${console}" &
+    detach bash scripts/log-follow.sh minio -- "${bin}" server "${HOME}/.apex-build/minio-data" --address "127.0.0.1:${port}" --console-address "127.0.0.1:${console}"
   echo $! >> .run/pids
   local i
   for i in $(seq 1 20); do
@@ -133,7 +159,7 @@ start_redis() {
   fi
   log "Starting Redis"
   if command -v redis-server >/dev/null 2>&1; then
-    bash scripts/log-follow.sh redis -- redis-server --port "${REDIS_PORT:-6379}" --maxmemory 64mb --maxmemory-policy allkeys-lru --bind 127.0.0.1 --protected-mode yes &
+    detach bash scripts/log-follow.sh redis -- redis-server --port "${REDIS_PORT:-6379}" --maxmemory 64mb --maxmemory-policy allkeys-lru --bind 127.0.0.1 --protected-mode yes
     echo $! >> .run/pids
   elif command -v brew >/dev/null 2>&1; then
     brew services start redis >>logs/redis.log 2>&1 || true
@@ -147,7 +173,7 @@ start_kafka() {
     log "Kafka is already listening on 9092"
     return
   fi
-  KAFKA_HOME="${KAFKA_HOME:-${HOME}/.apex-build/kafka}"
+  KAFKA_HOME="${KAFKA_HOME:-$(installed_tool .apex-build/kafka || true)}"
   if [[ ! -x "${KAFKA_HOME}/bin/kafka-server-start.sh" ]]; then
     log "ERROR: Kafka is not installed. Run scripts/install-deps.sh"
     exit 1
@@ -180,7 +206,7 @@ EOF
   LOG_DIR="${ROOT}/logs" \
     KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:${ROOT}/scripts/kafka/log4j.properties" \
     EXTRA_ARGS="-name kafkaServer" \
-    nohup "${KAFKA_HOME}/bin/kafka-server-start.sh" "${CFG}" >/dev/null 2>>logs/kafka.err.log &
+    detach nohup "${KAFKA_HOME}/bin/kafka-server-start.sh" "${CFG}" >/dev/null 2>>logs/kafka.err.log
   echo $! > .run/kafka.pid
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     port_open 9092 && return
@@ -200,7 +226,7 @@ start_jar() {
   fi
   log "Starting ${name}"
   # shellcheck disable=SC2086
-  nohup java ${opts} -DLOG_NAME="${name}" -jar "${jar}" "$@" >/dev/null 2>>"logs/${name}.err.log" &
+  detach nohup java ${opts} -DLOG_NAME="${name}" -jar "${jar}" "$@" >/dev/null 2>>"logs/${name}.err.log"
   echo $! >> .run/pids
 }
 
@@ -231,12 +257,12 @@ start_keycloak() {
     mkdir -p logs
     KC_BOOTSTRAP_ADMIN_USERNAME="${KEYCLOAK_ADMIN}" KC_BOOTSTRAP_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
       KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN}" KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
-      bash scripts/log-follow.sh keycloak --cwd "${home}" -- \
+      detach bash scripts/log-follow.sh keycloak --cwd "${home}" -- \
       "${bin}" start-dev --http-port=8180 --http-management-port=9002 \
       --db=postgres \
       --db-url="jdbc:postgresql://${DB_HOST:-localhost}:${DB_PORT:-5432}/apex_keycloak" \
       --db-username="${DB_USERNAME:-postgres}" \
-      --db-password="${DB_PASSWORD}" &
+      --db-password="${DB_PASSWORD}"
     echo $! >> .run/pids
     local i
     for i in $(seq 1 40); do
@@ -289,7 +315,7 @@ if [[ ! -d webapp/node_modules ]]; then
   (cd webapp && npm install)
 fi
 log "Starting webapp on http://localhost:5173"
-bash scripts/log-follow.sh webapp --cwd webapp -- npm run dev &
+detach bash scripts/log-follow.sh webapp --cwd webapp -- npm run dev
 echo $! >> .run/pids
 
 log "Apex Build is up."
