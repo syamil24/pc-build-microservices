@@ -23,7 +23,7 @@ esac
 curl -fsSL -o runner.tar.gz "https://github.com/actions/runner/releases/download/v${ver}/actions-runner-${pkg}-${ver}.tar.gz"
 tar -xzf runner.tar.gz
 ./config.sh --unattended --url "https://github.com/${REPO}" --token "${GH_RUNNER_TOKEN}" \
-  --name apex-vps --labels apex-vps --replace
+  --name apex-vps --replace
 sudo ./svc.sh install
 sudo ./svc.sh start
-vps_log "Runner apex-vps is installed. Pull-request jobs stay on GitHub-hosted runners."
+vps_log "Runner apex-vps is installed with labels self-hosted, Linux, and X64. Pull-request jobs stay on GitHub-hosted runners."
