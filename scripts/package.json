@@ -1,6 +1,7 @@
 {
   "name": "apex-agents",
   "private": true,
+  "type": "commonjs",
   "dependencies": {
     "@cursor/sdk": "*"
   }

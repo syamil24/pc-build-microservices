@@ -1,5 +1,42 @@
 const fs = require("fs");
+const http = require("http");
+const https = require("https");
 const path = require("path");
+
+function request(urlString, options) {
+  const settings = options || {};
+  const target = new URL(urlString);
+  const lib = target.protocol === "https:" ? https : http;
+  let payload = settings.body;
+  if (payload !== undefined && payload !== null && typeof payload !== "string") payload = String(payload);
+  const headers = Object.assign({}, settings.headers || {});
+  if (payload) headers["Content-Length"] = Buffer.byteLength(payload);
+  return new Promise(function (resolve, reject) {
+    const req = lib.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port,
+      path: target.pathname + target.search,
+      method: settings.method || "GET",
+      headers: headers
+    }, function (res) {
+      const chunks = [];
+      res.on("data", function (chunk) { chunks.push(chunk); });
+      res.on("end", function () {
+        const text = Buffer.concat(chunks).toString("utf8");
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          text: function () { return Promise.resolve(text); },
+          json: function () { return Promise.resolve(text ? JSON.parse(text) : null); }
+        });
+      });
+    });
+    req.on("error", reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
 
 const base = (process.env.KEYCLOAK_URL || "http://localhost:8180").replace(/\/$/, "");
 const adminUser = process.env.KEYCLOAK_ADMIN || "admin";
@@ -23,7 +60,7 @@ async function token() {
     username: adminUser,
     password: adminPassword
   });
-  const response = await fetch(base + "/realms/master/protocol/openid-connect/token", {
+  const response = await request(base + "/realms/master/protocol/openid-connect/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body
@@ -35,7 +72,7 @@ async function token() {
 }
 
 async function api(access, method, urlPath, payload) {
-  const response = await fetch(base + urlPath, {
+  const response = await request(base + urlPath, {
     method,
     headers: {
       Authorization: "Bearer " + access,
@@ -116,7 +153,7 @@ async function ensureUser(access, email, password, role, id, firstName) {
     attributes: id ? { apex_user_id: [id] } : {}
   };
   if (!userId) {
-    const created = await fetch(base + "/admin/realms/apex/users", {
+    const created = await request(base + "/admin/realms/apex/users", {
       method: "POST",
       headers: { Authorization: "Bearer " + access, "Content-Type": "application/json" },
       body: JSON.stringify(profile)
@@ -144,7 +181,7 @@ async function ensureUser(access, email, password, role, id, firstName) {
 
 async function main() {
   const access = await token();
-  const realm = await fetch(base + "/admin/realms/apex", { headers: { Authorization: "Bearer " + access } });
+  const realm = await request(base + "/admin/realms/apex", { headers: { Authorization: "Bearer " + access } });
   if (realm.status === 404) {
     const json = JSON.parse(fs.readFileSync(path.join(__dirname, "apex-realm.json"), "utf8"));
     await api(access, "POST", "/admin/realms", json);
