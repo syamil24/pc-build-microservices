@@ -30,20 +30,22 @@ mvn -B -DskipTests package
 vps_log "Starting Compose"
 vps_compose "${ROOT}" up -d --build
 
-vps_log "Waiting for the gateway"
-ready=0
-for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:8080/actuator/health" >/dev/null 2>&1; then
-    ready=1
-    break
-  fi
-  sleep 5
-done
-
-if [[ "${ready}" -ne 1 ]]; then
-  vps_telegram "Deploy ${SHA} failed. Gateway health did not become ready. Previous containers were already replaced by this attempt."
+wait_ready() {
+  local url="$1" label="$2"
+  vps_log "Waiting for ${label}"
+  local _
+  for _ in $(seq 1 60); do
+    if curl -fsS "${url}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 5
+  done
+  vps_telegram "Deploy ${SHA} failed. ${label} did not become ready. The new containers are still running so the logs can be read."
   exit 1
-fi
+}
+
+wait_ready "http://127.0.0.1:8080/actuator/health" "the gateway"
+wait_ready "http://127.0.0.1:8083/actuator/health" "inventory"
 
 if bash "${ROOT}/scripts/smoke-test.sh"; then
   vps_telegram "Deploy ${SHA} is up. Smoke test passed."

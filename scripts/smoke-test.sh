@@ -13,7 +13,18 @@ if [[ "${platform_status}" != "401" ]]; then
   exit 1
 fi
 log "Categories"
-curl -fsS "${BASE}/api/catalog/categories" >/dev/null
+ready=0
+for _ in $(seq 1 12); do
+  if curl -fsS "${BASE}/api/catalog/categories" >/dev/null; then
+    ready=1
+    break
+  fi
+  sleep 5
+done
+if [[ "${ready}" -ne 1 ]]; then
+  log "ERROR: /api/catalog/categories did not return a catalog"
+  exit 1
+fi
 log "Search GPUs under RM 2500"
 curl -fsS "${BASE}/api/catalog/products?category=GPU&maxPrice=250000&q=helix" >/dev/null
 CPU="$(curl -fsS "${BASE}/api/catalog/products?category=CPU&q=7600")"
