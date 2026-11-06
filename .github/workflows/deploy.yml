@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          clean: false
       - name: Build and smoke-test
         env:
           APEX_DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
