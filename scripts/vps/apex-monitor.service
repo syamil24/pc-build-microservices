@@ -1,7 +1,7 @@
 [Unit]
 Description=Apex Build VPS monitor
-After=docker.service
-Requires=docker.service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple

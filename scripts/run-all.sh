@@ -82,6 +82,12 @@ if [[ "${APEX_JVM_PROFILE:-demo}" == "full" ]]; then
 else
   JVM="-Xms64m -Xmx256m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=192m -Xss256k"
 fi
+if [[ -f "${HOME}/.apex-heal/heaps.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${HOME}/.apex-heal/heaps.env"
+  set +a
+fi
 
 port_open() {
   if command -v nc >/dev/null 2>&1; then
@@ -185,11 +191,16 @@ EOF
 }
 
 start_jar() {
-  local name="$1" jar="$2"
+  local name="$1" jar="$2" opts="${JVM}" key
   shift 2
+  key="$(printf '%s' "${name}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+  key="${key}_JAVA_OPTS"
+  if [[ -n "${!key:-}" ]]; then
+    opts="${!key}"
+  fi
   log "Starting ${name}"
   # shellcheck disable=SC2086
-  nohup java ${JVM} -DLOG_NAME="${name}" -jar "${jar}" "$@" >/dev/null 2>>"logs/${name}.err.log" &
+  nohup java ${opts} -DLOG_NAME="${name}" -jar "${jar}" "$@" >/dev/null 2>>"logs/${name}.err.log" &
   echo $! >> .run/pids
 }
 

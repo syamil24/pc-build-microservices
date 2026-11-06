@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the jars, start the Compose stack, and smoke-test the gateway.
+# Build the jars, start them with the local Redis, Kafka, and MinIO binaries, and smoke-test the gateway.
 set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 ROOT="$(vps_root)"
@@ -27,8 +27,8 @@ fi
 vps_log "Packaging ${SHA}"
 mvn -B -DskipTests package
 
-vps_log "Starting Compose"
-vps_compose "${ROOT}" up -d --build
+vps_log "Starting fat jars and local binaries"
+bash "${ROOT}/scripts/vps/shop.sh" redeploy
 
 wait_ready() {
   local url="$1" label="$2"
@@ -40,7 +40,7 @@ wait_ready() {
     fi
     sleep 5
   done
-  vps_telegram "Deploy ${SHA} failed. ${label} did not become ready. The new containers are still running so the logs can be read."
+  vps_telegram "Deploy ${SHA} failed. ${label} did not become ready. The processes are still running so the logs can be read."
   exit 1
 }
 
@@ -50,6 +50,6 @@ wait_ready "http://127.0.0.1:8083/actuator/health" "inventory"
 if bash "${ROOT}/scripts/smoke-test.sh"; then
   vps_telegram "Deploy ${SHA} is up. Smoke test passed."
 else
-  vps_telegram "Deploy ${SHA} failed the smoke test. The new containers are still running so the logs can be read."
+  vps_telegram "Deploy ${SHA} failed the smoke test. The processes are still running so the logs can be read."
   exit 1
 fi

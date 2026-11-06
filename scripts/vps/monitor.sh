@@ -70,16 +70,16 @@ health_report() {
 }
 
 log_signal() {
-  local name line
-  docker ps --format '{{.Names}}' >/dev/null 2>&1 || { echo ok; return; }
-  while read -r name; do
-    [[ -z "${name}" ]] && continue
-    line="$(docker logs --since 20s "${name}" 2>&1 | grep -E 'ERROR|Exception|OutOfMemoryError' | tail -n 1 || true)"
+  local file line
+  [[ -d "${ROOT}/logs" ]] || { echo ok; return; }
+  while IFS= read -r file; do
+    [[ -z "${file}" ]] && continue
+    line="$(grep -E 'ERROR|Exception|OutOfMemoryError' "${file}" | tail -n 1 || true)"
     if [[ -n "${line}" ]]; then
-      echo "${name} ${line}"
+      echo "$(basename "${file}") ${line}"
       return
     fi
-  done < <(docker ps --format '{{.Names}}')
+  done < <(find "${ROOT}/logs" -maxdepth 1 -type f \( -name '*.log' -o -name '*.err.log' \) -mmin -1 2>/dev/null || true)
   echo ok
 }
 
@@ -98,7 +98,7 @@ open_incident() {
   mkdir -p "${HEAL}/cooldown"
   date +%s > "${HEAL}/cooldown/${key}"
   id="$(date +%Y%m%d%H%M%S)"
-  report="$(health_report; docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' || true)"
+  report="$(health_report)"
   node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({id:process.argv[2], signal:process.argv[3], service:""}))' \
     "${HEAL}/incident.json" "${id}" "${signal}"
   node "${ROOT}/scripts/vps/interpret.mjs" "${HEAL}/incident.json" > "${HEAL}/decision.json"
