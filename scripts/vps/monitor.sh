@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Watches the Compose stack, asks Telegram, and runs a stored skill when one has recovered before.
+# Watches health and logs, answers Telegram questions, and runs a stored skill when one has recovered before.
 set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 ROOT="$(vps_root)"
 cd "${ROOT}"
 vps_load_env "${ROOT}"
 HEAL="${HOME}/.apex-heal"
-mkdir -p "${HEAL}/imported" "${HEAL}/pins"
+mkdir -p "${HEAL}/imported" "${HEAL}/pins" "${ROOT}/logs"
 export APEX_ROOT="${ROOT}"
 export APEX_HEAL_DIR="${HEAL}"
 PORTS=(8080 8081 8082 8083 8084 8085 8086 8087 8088 8761)
@@ -131,23 +131,20 @@ save_skill() {
   ' "${HEAL}" "${signal}" "${HEAL}/decision.json" "${2:-}"
 }
 
-poll_reply() {
-  [[ -f "${HEAL}/open.json" ]] || return 0
-  local offset=0
-  [[ -f "${HEAL}/telegram.offset" ]] && offset="$(cat "${HEAL}/telegram.offset")"
-  local polled
-  polled="$(node "${ROOT}/scripts/vps/telegram-poll.mjs" "${offset}")"
-  printf '%s' "$(printf '%s\n' "${polled}" | head -n 1)" > "${HEAL}/telegram.offset"
-  local messages
-  messages="$(printf '%s\n' "${polled}" | tail -n 1)"
-  [[ "${messages}" == "[]" || -z "${messages}" ]] && return 0
-  local text
-  text="$(node -e 'const m=JSON.parse(process.argv[1]); process.stdout.write(m.length ? m[m.length-1].text : "")' "${messages}")"
-  [[ -z "${text}" ]] && return 0
-  local signal
+answer_chat() {
+  local text="$1" answer
+  answer="$(node "${ROOT}/scripts/vps/chat.mjs" "${text}" 2>>"${ROOT}/logs/monitor.err.log" || true)"
+  if [[ -z "${answer}" ]]; then
+    answer="I could not read that. Ask for CPU, memory, requests, or service health."
+  fi
+  vps_telegram "${answer}"
+}
+
+repair_reply() {
+  local text="$1" signal mode
   signal="$(node -e 'const i=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.stdout.write(i.signal || "")' "${HEAL}/open.json")"
   node "${ROOT}/scripts/vps/interpret.mjs" "${HEAL}/open.json" "${text}" > "${HEAL}/decision.json"
-  local mode="pending"
+  mode="pending"
   if printf '%s' "${text}" | grep -Eqi 'apply|yes|do it'; then
     mode="confirmed"
   fi
@@ -163,6 +160,24 @@ poll_reply() {
     fi
   fi
   vps_telegram "That reply did not recover ${signal}. Health is still failing."
+}
+
+poll_reply() {
+  local offset=0 polled messages text
+  [[ -f "${HEAL}/telegram.offset" ]] && offset="$(cat "${HEAL}/telegram.offset")"
+  polled="$(node "${ROOT}/scripts/vps/telegram-poll.mjs" "${offset}" 2>>"${ROOT}/logs/monitor.err.log" || true)"
+  [[ -z "${polled}" ]] && return 0
+  printf '%s' "$(printf '%s\n' "${polled}" | head -n 1)" > "${HEAL}/telegram.offset"
+  messages="$(printf '%s\n' "${polled}" | tail -n 1)"
+  [[ "${messages}" == "[]" || -z "${messages}" ]] && return 0
+  while IFS= read -r text; do
+    [[ -z "${text}" ]] && continue
+    if [[ -f "${HEAL}/open.json" ]] && printf '%s' "${text}" | grep -Eqi 'restart|fix|heap|stop|rollback|smoke|apply|yes|do it|edit|null pointer'; then
+      repair_reply "${text}"
+    else
+      answer_chat "${text}"
+    fi
+  done < <(node -e 'const m=JSON.parse(process.argv[1]); for (const item of m) process.stdout.write(String(item.text||"").replace(/\n/g," ")+"\n")' "${messages}")
 }
 
 while true; do
