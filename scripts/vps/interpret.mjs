@@ -1,5 +1,5 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 const incidentPath = process.argv[2];
 const reply = process.argv[3] || "";
@@ -94,26 +94,20 @@ async function fromModel(text) {
   return validate(parsed.actions || []);
 }
 
-async function main() {
-  const matched = reply ? null : matchSkill();
-  let actions = [];
-  if (matched) {
-    actions = validate(matched.actions || []);
-  } else if (reply) {
-    try {
-      actions = (await fromModel(reply)) || keyword(reply);
-    } catch (err) {
-      actions = keyword(reply);
-    }
+const matched = reply ? null : matchSkill();
+let actions = [];
+if (matched) {
+  actions = validate(matched.actions || []);
+} else if (reply) {
+  try {
+    actions = (await fromModel(reply)) || keyword(reply);
+  } catch {
+    actions = keyword(reply);
   }
-  process.stdout.write(`${JSON.stringify({
-    actions,
-    matched: Boolean(matched),
-    skill: matched || null
-  })}\n`);
 }
 
-main().catch(function (err) {
-  process.stderr.write(String((err && err.message) || err) + "\n");
-  process.exit(1);
-});
+process.stdout.write(`${JSON.stringify({
+  actions,
+  matched: Boolean(matched),
+  skill: matched || null
+})}\n`);

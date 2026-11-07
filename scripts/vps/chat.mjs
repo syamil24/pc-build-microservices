@@ -1,6 +1,6 @@
-import fs from "fs";
-import http from "http";
-import path from "path";
+import fs from "node:fs";
+import http from "node:http";
+import path from "node:path";
 
 const question = process.argv[2] || "";
 const root = process.env.APEX_ROOT || process.cwd();
@@ -157,26 +157,19 @@ async function fromModel(text, facts) {
   return String(result.result).slice(0, 1200);
 }
 
-async function main() {
-  const facts = {
-    cpuPercent: await cpuPercent(),
-    memory: memory(),
-    requests: await requests(),
-    health: await healthLines(),
-    errors: recentErrors()
-  };
-  let reply = keyword(question, facts);
-  if (!reply) {
-    try {
-      reply = await fromModel(question, facts);
-    } catch (err) {
-      reply = null;
-    }
+const facts = {
+  cpuPercent: await cpuPercent(),
+  memory: memory(),
+  requests: await requests(),
+  health: await healthLines(),
+  errors: recentErrors()
+};
+let reply = keyword(question, facts);
+if (!reply) {
+  try {
+    reply = await fromModel(question, facts);
+  } catch {
+    reply = null;
   }
-  process.stdout.write(reply || summary(facts));
 }
-
-main().catch(function (err) {
-  process.stderr.write(String((err && err.message) || err) + "\n");
-  process.exit(1);
-});
+process.stdout.write(reply || summary(facts));
