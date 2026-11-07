@@ -1,6 +1,6 @@
-import { spawnSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
+import { spawnSync } from "child_process";
+import fs from "fs";
+import path from "path";
 
 const file = process.argv[2];
 const confirmed = process.argv[3] === "confirmed";
@@ -49,6 +49,7 @@ function heapVar(service) {
   return `${service.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_JAVA_OPTS`;
 }
 
+async function main() {
 const notes = [];
 for (const action of actions) {
   if (action.op === "restart") {
@@ -114,3 +115,9 @@ for (const action of actions) {
 }
 
 process.stdout.write(notes.join("\n"));
+}
+
+main().catch(function (err) {
+  process.stderr.write(String((err && err.message) || err) + "\n");
+  process.exit(1);
+});

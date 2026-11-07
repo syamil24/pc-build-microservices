@@ -5,6 +5,10 @@ source "$(dirname "$0")/common.sh"
 ROOT="$(vps_root)"
 cd "${ROOT}"
 vps_load_env "${ROOT}"
+if [[ -z "${HOME:-}" ]]; then
+  HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
+  export HOME
+fi
 HEAL="${HOME}/.apex-heal"
 mkdir -p "${HEAL}/imported" "${HEAL}/pins" "${ROOT}/logs"
 export APEX_ROOT="${ROOT}"

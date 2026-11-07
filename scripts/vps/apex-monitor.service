@@ -5,8 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/apex-build
-ExecStart=/bin/bash /opt/apex-build/scripts/vps/monitor.sh
+User=github-runner
+WorkingDirectory=/opt/actions-runner/_work/pc-build-microservices/pc-build-microservices
+ExecStart=/bin/bash /opt/actions-runner/_work/pc-build-microservices/pc-build-microservices/scripts/vps/monitor.sh
 Restart=always
 RestartSec=5
 
