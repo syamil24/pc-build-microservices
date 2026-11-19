@@ -1,3 +1,5 @@
+import type { JSX } from "react";
+
 const paths: Record<string, JSX.Element> = {
   CPU: (
     <>
