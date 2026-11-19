@@ -33,16 +33,16 @@ node_major() {
   node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0
 }
 
-install_node22_debian() {
+install_node_debian() {
   local major
   major="$(node_major)"
-  if [[ "${major}" -ge 22 ]]; then
-    log "Node $(node -v) is already new enough."
+  if [[ "${major}" -ge 26 ]]; then
+    log "Node $(node -v) is already current."
     return 0
   fi
-  log "Installing Node.js 22. The distro Node is too old for fetch."
-  run curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/apex-nodesource-22.sh
-  run sudo bash /tmp/apex-nodesource-22.sh
+  log "Installing Node.js 26."
+  run curl -fsSL https://deb.nodesource.com/setup_26.x -o /tmp/apex-nodesource-26.sh
+  run sudo bash /tmp/apex-nodesource-26.sh
   run sudo apt-get install -y nodejs
 }
 
@@ -57,7 +57,7 @@ fi
 install_debian() {
   run sudo apt-get update
   run sudo apt-get install -y openjdk-21-jdk maven curl tar ca-certificates redis-server postgresql-client
-  install_node22_debian
+  install_node_debian
   if have systemctl && systemctl --user status >/dev/null 2>&1 || systemctl is-system-running >/dev/null 2>&1; then
     run sudo systemctl enable --now redis-server || log "redis-server service was not enabled; start it with redis-server --daemonize yes"
   else

@@ -20,7 +20,7 @@ The shop UI is at `http://localhost:5173` after the run script. Prices are Malay
 
 - JDK 21 and Maven (already used by the build)
 - PostgreSQL 17 listening on localhost
-- Node.js 22 for the shop
+- Node.js 26 for the shop
 - Redis and Kafka, installed by the scripts below
 
 ## 1. Install Redis, Kafka, and MinIO
