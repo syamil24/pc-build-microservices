@@ -6,8 +6,11 @@ export default function DemoPayPage() {
   const { paymentId } = useParams();
   const navigate = useNavigate();
   const [message, setMessage] = useState("This till stands in for CHIP until live keys are configured.");
+  const [busy, setBusy] = useState(false);
 
   async function pay(success: boolean) {
+    if (busy) return;
+    setBusy(true);
     try {
       const payment = await api<{ orderId: string }>(`/api/payments/demo/${paymentId}/confirm`, {
         method: "POST",
@@ -16,17 +19,18 @@ export default function DemoPayPage() {
       navigate(`/orders/${payment.orderId}`);
     } catch (ex) {
       setMessage(ex instanceof Error ? ex.message : "Payment failed");
+      setBusy(false);
     }
   }
 
   return (
-    <section className="panel" style={{ marginTop: 28 }}>
-      <div className="kicker">Demo checkout</div>
+    <section className="panel auth-card">
+      <p className="kicker">Demo checkout</p>
       <h1>Confirm the payment</h1>
-      <p className="muted">{message}</p>
+      <p className="muted" role="status">{message}</p>
       <div className="row">
-        <button className="btn" onClick={() => pay(true)}>Pay now</button>
-        <button className="ghost" onClick={() => pay(false)}>Fail the payment</button>
+        <button className="btn" type="button" disabled={busy} onClick={() => pay(true)}>Pay now</button>
+        <button className="ghost" type="button" disabled={busy} onClick={() => pay(false)}>Fail the payment</button>
       </div>
     </section>
   );

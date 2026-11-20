@@ -57,41 +57,50 @@ export default function ReportsPage() {
       <h2>Sales report</h2>
       <p className="muted">Jasper builds the PDF from paid lines stored by the report service. Filter by month and, if you want, one category.</p>
       <form className="row" onSubmit={generate}>
-        <label>Month
-          <select value={month} onChange={(event) => setMonth(event.target.value)}>
+        <div className="field">
+          <label htmlFor="report-month">Month</label>
+          <select id="report-month" value={month} onChange={(event) => setMonth(event.target.value)}>
             {months.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-        </label>
-        <label>Category
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+        </div>
+        <div className="field">
+          <label htmlFor="report-category">Category</label>
+          <select id="report-category" value={category} onChange={(event) => setCategory(event.target.value)}>
             <option value="">All</option>
             {categories.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
           </select>
-        </label>
+        </div>
         <button className="btn" type="submit" disabled={busy}>{busy ? "Building" : "Generate"}</button>
         <button className="ghost" type="button" onClick={pdf}>Download PDF</button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="toast error" role="alert"><span role="img" aria-label="Error">!</span> {error}</p>}
       {report && (
         <>
-          <div className="stat-row">
-            <div className="panel stat"><strong>{report.orderCount}</strong><span className="muted">Orders</span></div>
-            <div className="panel stat"><strong>{report.unitCount}</strong><span className="muted">Units</span></div>
-            <div className="panel stat"><strong>{formatMyr(report.totalCents)}</strong><span className="muted">Revenue</span></div>
-          </div>
-          <div className="table-wrap">
+          <ul className="stat-row">
+            <li className="panel stat"><strong>{report.orderCount}</strong><span className="muted">Orders</span></li>
+            <li className="panel stat"><strong>{report.unitCount}</strong><span className="muted">Units</span></li>
+            <li className="panel stat"><strong>{formatMyr(report.totalCents)}</strong><span className="muted">Revenue</span></li>
+          </ul>
+          <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="sales-caption">
             <table className="data">
+              <caption id="sales-caption">Paid lines for {report.month}</caption>
               <thead>
-                <tr><th>Category</th><th>SKU</th><th>Product</th><th>Units</th><th>Revenue</th></tr>
+                <tr>
+                  <th scope="col">Product</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">SKU</th>
+                  <th scope="col">Units</th>
+                  <th scope="col">Revenue</th>
+                </tr>
               </thead>
               <tbody>
                 {report.rows.map((row) => (
                   <tr key={row.sku}>
-                    <td>{row.categoryCode}</td>
-                    <td>{row.sku}</td>
-                    <td>{row.productName}</td>
-                    <td>{row.quantity}</td>
-                    <td>{formatMyr(row.revenueCents)}</td>
+                    <th scope="row">{row.productName}</th>
+                    <td data-label="Category">{row.categoryCode}</td>
+                    <td data-label="SKU">{row.sku}</td>
+                    <td data-label="Units">{row.quantity}</td>
+                    <td data-label="Revenue">{formatMyr(row.revenueCents)}</td>
                   </tr>
                 ))}
               </tbody>

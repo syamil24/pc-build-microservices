@@ -10,17 +10,40 @@ export default function OrderPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<Order>(`/api/orders/${id}`).then(setOrder).catch((ex: Error) => setError(ex.message));
-    const timer = setInterval(() => {
-      api<Shipment>(`/api/shipments/order/${id}`).then(setShipment).catch(() => setShipment(null));
-    }, 4000);
-    return () => clearInterval(timer);
+    let cancel = false;
+    api<Order>(`/api/orders/${id}`).then((next) => {
+      if (!cancel) setOrder(next);
+    }).catch((ex: Error) => {
+      if (!cancel) setError(ex.message);
+    });
+
+    const loadShipment = () => {
+      if (document.hidden) return;
+      api<Shipment>(`/api/shipments/order/${id}`).then((next) => {
+        if (!cancel) setShipment(next);
+      }).catch(() => {
+        if (!cancel) setShipment(null);
+      });
+    };
+    loadShipment();
+    const timer = window.setInterval(loadShipment, 4000);
+    const onVisible = () => { if (!document.hidden) loadShipment(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancel = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [id]);
 
-  if (!order) return <p>{error || "Loading order..."}</p>;
+  useEffect(() => {
+    if (order) document.title = `${order.status} order · Apex Build`;
+  }, [order]);
+
+  if (!order) return <p role={error ? "alert" : "status"}>{error ? `Error. ${error}` : "Loading order..."}</p>;
   return (
     <section>
-      <div className="kicker">{order.status}</div>
+      <p className="kicker">{order.status}</p>
       <h1>{formatMyr(order.totalCents)}</h1>
       <p className="muted">{order.address}</p>
       <ul>{order.lines.map((line) => <li key={line.productId}>{line.name} × {line.quantity}</li>)}</ul>

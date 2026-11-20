@@ -84,21 +84,56 @@ export default function ProductFormPage() {
   return (
     <form className="panel form-grid" onSubmit={save}>
       <h2 className="wide">{id ? "Edit product" : "New product"}</h2>
-      {error && <p className="error wide">{error}</p>}
-      <label>SKU<input value={sku} onChange={(event) => setSku(event.target.value)} required /></label>
-      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
-      <label>Category
-        <select value={category} onChange={(event) => setCategory(event.target.value)}>
+      {error && <p className="toast error wide" role="alert"><span role="img" aria-label="Error">!</span> {error}</p>}
+      <div className="field">
+        <label htmlFor="sku">SKU</label>
+        <input id="sku" name="sku" value={sku} onChange={(event) => setSku(event.target.value)} required autoComplete="off" spellCheck={false} aria-invalid="false" data-error="sku-error" />
+        <p id="sku-error" className="error-msg"><span role="img" aria-label="Error">!</span> Enter a SKU.</p>
+      </div>
+      <div className="field">
+        <label htmlFor="product-name">Name</label>
+        <input id="product-name" name="name" value={name} onChange={(event) => setName(event.target.value)} required aria-invalid="false" data-error="name-error" />
+        <p id="name-error" className="error-msg"><span role="img" aria-label="Error">!</span> Enter the product name.</p>
+      </div>
+      <div className="field">
+        <label htmlFor="product-category">Category</label>
+        <select id="product-category" name="category" value={category} onChange={(event) => setCategory(event.target.value)}>
           {categories.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
         </select>
+      </div>
+      <div className="field">
+        <label htmlFor="brand">Brand</label>
+        <input id="brand" name="brand" value={brand} onChange={(event) => setBrand(event.target.value)} required aria-invalid="false" data-error="brand-error" />
+        <p id="brand-error" className="error-msg"><span role="img" aria-label="Error">!</span> Enter a brand.</p>
+      </div>
+      <div className="field">
+        <label htmlFor="price">Price (MYR)</label>
+        <span id="price-hint" className="hint">Use ringgit and sen, such as 899.00.</span>
+        <input id="price" name="price" inputMode="decimal" autoComplete="off" placeholder="899.00" value={price} onChange={(event) => setPrice(event.target.value)} required pattern={"^\\d+(\\.\\d{0,2})?$"} aria-invalid="false" aria-describedby="price-hint" data-error="price-error" />
+        <p id="price-error" className="error-msg"><span role="img" aria-label="Error">!</span> Enter a price in ringgit, such as 899.00.</p>
+      </div>
+      <div className="field">
+        <label htmlFor="stock">Stock</label>
+        <input id="stock" name="stock" type="number" min="0" value={stock} onChange={(event) => setStock(event.target.value)} required aria-invalid="false" data-error="stock-error" />
+        <p id="stock-error" className="error-msg"><span role="img" aria-label="Error">!</span> Enter a stock count of zero or more.</p>
+      </div>
+      <div className="field">
+        <label htmlFor="hue">Image hue</label>
+        <input id="hue" name="hue" type="number" min="0" max="359" value={hue} onChange={(event) => setHue(event.target.value)} />
+      </div>
+      <label className="check">
+        <input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} />
+        Active
       </label>
-      <label>Brand<input value={brand} onChange={(event) => setBrand(event.target.value)} required /></label>
-      <label>Price (MYR)<input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="899.00" required /></label>
-      <label>Stock<input type="number" min="0" value={stock} onChange={(event) => setStock(event.target.value)} required /></label>
-      <label>Image hue<input type="number" min="0" max="359" value={hue} onChange={(event) => setHue(event.target.value)} /></label>
-      <label>Active<input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /></label>
-      <label className="wide">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} required /></label>
-      <label className="wide">Specs JSON<textarea value={specs} onChange={(event) => setSpecs(event.target.value)} /></label>
+      <div className="field wide">
+        <label htmlFor="description">Description</label>
+        <textarea id="description" name="description" value={description} onChange={(event) => setDescription(event.target.value)} required aria-invalid="false" data-error="description-error" />
+        <p id="description-error" className="error-msg"><span role="img" aria-label="Error">!</span> Enter a description.</p>
+      </div>
+      <div className="field wide">
+        <label htmlFor="specs">Specs JSON</label>
+        <textarea id="specs" name="specs" value={specs} onChange={(event) => setSpecs(event.target.value)} spellCheck={false} />
+      </div>
       <div className="row wide">
         <button className="btn" type="submit">Save</button>
         <Link to="/admin">Cancel</Link>

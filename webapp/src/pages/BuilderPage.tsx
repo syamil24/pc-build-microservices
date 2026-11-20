@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMyr, session } from "../api";
 import ProductPhoto from "../ProductPhoto";
@@ -21,6 +21,9 @@ export default function BuilderPage() {
   const [message, setMessage] = useState("");
   const [detail, setDetail] = useState<Product | null>(null);
   const [added, setAdded] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const preserveSaved = useRef(false);
 
   useEffect(() => {
     api<Category[]>("/api/catalog/categories")
@@ -39,36 +42,52 @@ export default function BuilderPage() {
   }, [active]);
 
   useEffect(() => {
+    let cancel = false;
     try {
       const raw = localStorage.getItem(BUILD_KEY);
-      if (!raw) return;
+      if (!raw) {
+        setReady(true);
+        return;
+      }
       const ids = JSON.parse(raw) as Record<string, string>;
       const entries = Object.entries(ids).filter(([, id]) => Boolean(id));
-      if (entries.length === 0) return;
+      if (entries.length === 0) {
+        setReady(true);
+        return;
+      }
       Promise.all(entries.map(([code, id]) =>
         api<Product>(`/api/catalog/products/${id}`)
           .then((product) => ({ code, product }))
           .catch(() => null)
       )).then((rows) => {
+        if (cancel) return;
         const restored: Record<string, Product> = {};
         for (const row of rows) {
           if (row && SLOT_ORDER.includes(row.code)) restored[row.code] = row.product;
         }
         if (Object.keys(restored).length > 0) setPicked(restored);
+        else preserveSaved.current = true;
+        setReady(true);
       });
     } catch {
-      /* a broken saved build just starts empty */
+      setReady(true);
     }
+    return () => { cancel = true; };
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
+    if (preserveSaved.current) {
+      preserveSaved.current = false;
+      return;
+    }
     const ids: Record<string, string> = {};
     for (const [code, product] of Object.entries(picked)) {
       if (product) ids[code] = product.id;
     }
     localStorage.setItem(BUILD_KEY, JSON.stringify(ids));
     setAdded(false);
-  }, [picked]);
+  }, [picked, ready]);
 
   const lines = useMemo(
     () => Object.values(picked).flatMap((product) => product ? [{ productId: product.id, quantity: 1 }] : []),
@@ -91,7 +110,6 @@ export default function BuilderPage() {
   const nameOf = (code: string) => categories.find((item) => item.code === code)?.name || code;
   const slots = SLOT_ORDER.map((code) => ({ code, name: nameOf(code) }));
   const pickedCount = SLOT_ORDER.filter((code) => picked[code]).length;
-  const progress = Math.round((pickedCount / SLOT_ORDER.length) * 100);
   const load = quote?.psuWatts ? Math.min(100, Math.round((quote.estimatedWatts / quote.psuWatts) * 100)) : quote ? 40 : 0;
 
   function select(product: Product) {
@@ -109,6 +127,7 @@ export default function BuilderPage() {
   }
 
   async function addBuild() {
+    if (saving) return;
     if (!session()) {
       setMessage("Log in before sending the build to the cart.");
       return;
@@ -117,6 +136,7 @@ export default function BuilderPage() {
       setMessage("Resolve the compatibility errors first.");
       return;
     }
+    setSaving(true);
     try {
       await api("/api/cart/builds", {
         method: "POST",
@@ -127,6 +147,8 @@ export default function BuilderPage() {
       setMessage("");
     } catch (ex) {
       setMessage(ex instanceof Error ? ex.message : "Could not add the build");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -137,19 +159,20 @@ export default function BuilderPage() {
           <h1>PC builder</h1>
           <p className="muted">Pick a slot on the rig or on the list. Apex checks sockets, memory, clearance, and power as you go.</p>
         </div>
-        <div className="build-progress" aria-label={`${pickedCount} of ${SLOT_ORDER.length} parts picked`}>
-          <div className="row">
+        <label className="build-progress">
+          <span className="row">
             <strong>{pickedCount} / {SLOT_ORDER.length}</strong>
             <span className="muted">parts picked</span>
-          </div>
-          <div className="bar"><span style={{ width: `${progress}%` }} /></div>
-        </div>
+          </span>
+          <progress className="meter-bar" max={SLOT_ORDER.length} value={pickedCount} aria-label={`${pickedCount} of ${SLOT_ORDER.length} parts picked`} />
+        </label>
       </div>
 
-      {message && <p className="toast error" role="alert">{message}</p>}
+      {message && <p className="toast error" role="alert"><span role="img" aria-label="Error">!</span> {message}</p>}
       {added && (
         <p className="toast ok" role="status">
-          Build added to the cart. <Link to="/cart">Review the cart</Link>
+          <span role="img" aria-label="Success">✓</span>
+          <span>Build added to the cart. <Link to="/cart">Review the cart</Link></span>
         </p>
       )}
 
@@ -185,7 +208,7 @@ export default function BuilderPage() {
               return (
                 <article key={product.id} className={"part" + (isPicked ? " picked" : "")}>
                   <button className="part-main" aria-pressed={isPicked} onClick={() => select(product)}>
-                    <ProductPhoto product={product} />
+                    <ProductPhoto product={product} decorative />
                     <span className="part-body">
                       {product.brand && !product.name.toLowerCase().startsWith(product.brand.toLowerCase()) && (
                         <span className="pill">{product.brand}</span>
@@ -208,8 +231,8 @@ export default function BuilderPage() {
           </div>
         </div>
 
-        <aside className="panel summary">
-          <div className="kicker">Your build</div>
+        <aside className="panel summary" aria-labelledby="build-summary-title">
+          <h2 id="build-summary-title">Your build</h2>
           <ul className="build-list">
             {SLOT_ORDER.map((code) => {
               const product = picked[code];
@@ -224,7 +247,7 @@ export default function BuilderPage() {
               }
               return (
                 <li key={code} className="build-item">
-                  <span className="build-thumb"><ProductPhoto product={product} /></span>
+                  <span className="build-thumb"><ProductPhoto product={product} decorative /></span>
                   <span className="build-meta">
                     <strong>{product.name}</strong>
                     <span className="muted">{nameOf(code)}</span>
@@ -241,13 +264,15 @@ export default function BuilderPage() {
               <span className="muted">Draw {quote?.estimatedWatts ?? 0}W</span>
               <span className="muted">PSU {quote?.psuWatts ?? "-"}W</span>
             </div>
-            <div className={"bar" + (load > 85 ? " hot" : "")}><span style={{ width: `${load}%` }} /></div>
-            <div className="muted">Suggested PSU {quote?.recommendedPsuWatts ?? 0}W</div>
+            <progress className={"meter-bar" + (load > 85 ? " hot" : "")} max={100} value={load} aria-label="Estimated power draw against the chosen supply" />
+            <p className="muted">Suggested PSU {quote?.recommendedPsuWatts ?? 0}W</p>
           </div>
 
           <ul className="build-issues">
             {quote?.issues.map((issue) => (
-              <li key={issue.message} className={issue.severity === "ERROR" ? "error" : "warn"}>{issue.message}</li>
+              <li key={issue.message} className={issue.severity === "ERROR" ? "error" : "warn"}>
+                {issue.severity === "ERROR" ? "Error. " : "Warning. "}{issue.message}
+              </li>
             ))}
             {quote?.ok && <li className="ok">Parts agree with each other.</li>}
           </ul>
@@ -256,8 +281,8 @@ export default function BuilderPage() {
             <span>Total</span>
             <span className="price">{formatMyr(quote?.totalCents ?? 0)}</span>
           </div>
-          <button className="btn" disabled={!quote?.ok} onClick={addBuild}>Add build to cart</button>
-          {pickedCount > 0 && <button className="ghost" onClick={clearBuild}>Clear build</button>}
+          <button className="btn" type="button" disabled={!quote?.ok || saving} onClick={addBuild}>{saving ? "Adding…" : "Add build to cart"}</button>
+          {pickedCount > 0 && <button className="ghost" type="button" onClick={clearBuild}>Clear build</button>}
         </aside>
       </div>
 

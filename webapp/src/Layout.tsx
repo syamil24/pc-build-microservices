@@ -1,65 +1,15 @@
-import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
-import { api, clearSession, session } from "./api";
-import { keycloakLogoutUrl } from "./keycloak";
-import type { Cart } from "./types";
+import { Outlet } from "react-router-dom";
+import { SiteFooter, SiteHeader, SkipLink } from "./SiteChrome";
 
 export default function Layout() {
-  const [email, setEmail] = useState(session()?.email ?? null);
-  const [role, setRole] = useState(session()?.role ?? null);
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const sync = () => {
-      const current = session();
-      setEmail(current?.email ?? null);
-      setRole(current?.role ?? null);
-    };
-    window.addEventListener("apex-auth", sync);
-    window.addEventListener("apex-cart", () => refreshCart());
-    refreshCart();
-    return () => {
-      window.removeEventListener("apex-auth", sync);
-      window.removeEventListener("apex-cart", () => refreshCart());
-    };
-  }, []);
-
-  async function refreshCart() {
-    if (!session()) {
-      setCount(0);
-      return;
-    }
-    try {
-      const cart = await api<Cart>("/api/cart");
-      setCount(cart.lines.reduce((sum, line) => sum + line.quantity, 0));
-    } catch {
-      setCount(0);
-    }
-  }
-
   return (
     <>
-      <header className="shell nav">
-        <NavLink to="/" className="brand">APEX<span>BUILD</span></NavLink>
-        <NavLink to="/shop">Shop</NavLink>
-        <NavLink to="/builder">PC Builder</NavLink>
-        {role === "ADMIN" && <NavLink to="/admin">Admin</NavLink>}
-        <div className="spacer" />
-        <NavLink to="/cart">Cart ({count})</NavLink>
-        {email ? (
-          <>
-            <NavLink to="/orders">Orders</NavLink>
-            <NavLink to="/account">{email}</NavLink>
-            <button className="ghost" onClick={() => { clearSession(); window.location.assign(keycloakLogoutUrl()); }}>Log out</button>
-          </>
-        ) : (
-          <NavLink to="/login" className="btn">Log in</NavLink>
-        )}
-      </header>
-      <main className="shell">
+      <SkipLink />
+      <SiteHeader />
+      <main id="content" className="shell" tabIndex={-1}>
         <Outlet />
       </main>
-      <footer className="shell">Apex Build · custom rigs, laptops, and parts · prices in MYR</footer>
+      <SiteFooter />
     </>
   );
 }

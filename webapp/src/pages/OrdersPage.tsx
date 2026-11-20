@@ -8,20 +8,36 @@ export default function OrdersPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<Order[]>("/api/orders").then(setOrders).catch((ex: Error) => setError(ex.message));
+    const controller = new AbortController();
+    api<Order[]>("/api/orders", { signal: controller.signal })
+      .then(setOrders)
+      .catch((ex: unknown) => {
+        if (ex instanceof Error && ex.name === "AbortError") return;
+        setError(ex instanceof Error ? ex.message : "Could not load orders");
+      });
+    return () => controller.abort();
   }, []);
 
   return (
     <section>
-      <h1>Orders</h1>
-      {error && <p className="error">{error}</p>}
-      {orders.map((order) => (
-        <Link key={order.id} to={`/orders/${order.id}`} className="panel" style={{ display: "block", marginBottom: 10 }}>
-          <strong>{order.status}</strong>
-          <div className="muted">{new Date(order.createdAt).toLocaleString()} · {order.lines.length} lines</div>
-          <div className="price">{formatMyr(order.totalCents)}</div>
-        </Link>
-      ))}
+      <header className="page-head">
+        <h1>Orders</h1>
+      </header>
+      {error && <p className="toast error" role="alert"><span role="img" aria-label="Error">!</span> {error}</p>}
+      {orders.length === 0 && !error && <p>No orders yet. <Link to="/shop">Start in the shop</Link></p>}
+      <ul className="order-list">
+        {orders.map((order) => (
+          <li key={order.id}>
+            <Link to={`/orders/${order.id}`} className="panel cart-line">
+              <span>
+                <strong>{order.status}</strong>
+                <span className="muted">{new Date(order.createdAt).toLocaleString()} · {order.lines.length} lines</span>
+              </span>
+              <span className="price">{formatMyr(order.totalCents)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
