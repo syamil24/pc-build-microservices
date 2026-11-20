@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Watches health and logs, and runs a stored skill when one has recovered before.
-# Telegram chat is handled by scripts/vps/chat-agent.sh.
+# Watches health and logs. It records an incident and does not send or answer chat.
+# scripts/vps/chat-agent.sh resolves the open incident.
 set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 ROOT="$(vps_root)"
@@ -90,7 +90,7 @@ log_signal() {
 
 open_incident() {
   local signal="$1"
-  local key id report decision
+  local key id report
   key="$(printf '%s' "${signal}" | sha256sum | awk '{print $1}')"
   if [[ -f "${HEAL}/cooldown/${key}" ]]; then
     local then now
@@ -104,21 +104,9 @@ open_incident() {
   date +%s > "${HEAL}/cooldown/${key}"
   id="$(date +%Y%m%d%H%M%S)"
   report="$(health_report)"
-  node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({id:process.argv[2], signal:process.argv[3], service:""}))' \
-    "${HEAL}/incident.json" "${id}" "${signal}"
-  node "${ROOT}/scripts/vps/interpret.mjs" "${HEAL}/incident.json" > "${HEAL}/decision.json"
-  if node -e 'const d=require("fs").readFileSync(process.argv[1],"utf8"); const j=JSON.parse(d); process.exit(j.matched && j.actions.length ? 0 : 1)' "${HEAL}/decision.json"; then
-    if APEX_ROOT="${ROOT}" node "${ROOT}/scripts/vps/apply-actions.mjs" "${HEAL}/decision.json" confirmed; then
-      if [[ "$(health_report)" == ok ]]; then
-        vps_telegram "Reused a recovered skill for ${signal}. Health is back."
-        return 0
-      fi
-    fi
-    vps_telegram "A stored skill for ${signal} did not recover the shop. Reply with what to do."
-  else
-    vps_telegram "Incident ${id}: ${signal}"$'\n'"${report}"$'\n'"Reply with the action. Example: restart order-service"
-  fi
-  cp "${HEAL}/incident.json" "${HEAL}/open.json"
+  node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({id:process.argv[2], signal:process.argv[3], report:process.argv[4], service:""}))' \
+    "${HEAL}/open.json" "${id}" "${signal}" "${report}"
+  vps_log "Incident ${id}: ${signal}"
 }
 
 while true; do
