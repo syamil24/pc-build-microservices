@@ -7,12 +7,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    allowedHosts: ["shop.syamilthoughts.com"],
     proxy: {
       "/api": api
     }
   },
   preview: {
     port: 5173,
+    allowedHosts: ["shop.syamilthoughts.com"],
     proxy: {
       "/api": api
     }
