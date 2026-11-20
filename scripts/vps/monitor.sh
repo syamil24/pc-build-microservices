@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Watches health and logs, answers Telegram questions, and runs a stored skill when one has recovered before.
+# Watches health and logs, and runs a stored skill when one has recovered before.
+# Telegram chat is handled by scripts/vps/chat-agent.sh.
 set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 ROOT="$(vps_root)"
@@ -120,70 +121,6 @@ open_incident() {
   cp "${HEAL}/incident.json" "${HEAL}/open.json"
 }
 
-save_skill() {
-  local signal="$1"
-  node -e '
-    const fs = require("fs");
-    const heal = process.argv[1];
-    const signal = process.argv[2];
-    const decision = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
-    const file = heal + "/skills.json";
-    const skills = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : [];
-    const next = skills.filter((skill) => skill.signal !== signal);
-    next.push({ signal, actions: decision.actions, recovered: true, reply: process.argv[4] || "" });
-    fs.writeFileSync(file, JSON.stringify(next, null, 2));
-  ' "${HEAL}" "${signal}" "${HEAL}/decision.json" "${2:-}"
-}
-
-answer_chat() {
-  local text="$1" answer
-  answer="$(node "${ROOT}/scripts/vps/chat.mjs" "${text}" 2>>"${ROOT}/logs/monitor.err.log" || true)"
-  if [[ -z "${answer}" ]]; then
-    answer="I could not read that. Ask for CPU, memory, requests, or service health."
-  fi
-  vps_telegram "${answer}"
-}
-
-repair_reply() {
-  local text="$1" signal mode
-  signal="$(node -e 'const i=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.stdout.write(i.signal || "")' "${HEAL}/open.json")"
-  node "${ROOT}/scripts/vps/interpret.mjs" "${HEAL}/open.json" "${text}" > "${HEAL}/decision.json"
-  mode="pending"
-  if printf '%s' "${text}" | grep -Eqi 'apply|yes|do it'; then
-    mode="confirmed"
-  fi
-  if APEX_ROOT="${ROOT}" node "${ROOT}/scripts/vps/apply-actions.mjs" "${HEAL}/decision.json" "${mode}"; then
-    if [[ "$(health_report)" == ok || "${signal}" == apex-sim-* ]]; then
-      save_skill "${signal}" "${text}"
-      if node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.exit((d.actions||[]).some(a=>a.op==="edit-java")?0:1)' "${HEAL}/decision.json"; then
-        bash "${ROOT}/scripts/vps/heal-push.sh" "$(node -e 'const i=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.stdout.write(i.id||"manual")' "${HEAL}/open.json")" || true
-      fi
-      vps_telegram "Recovered ${signal}. The skill is stored."
-      rm -f "${HEAL}/open.json"
-      return 0
-    fi
-  fi
-  vps_telegram "That reply did not recover ${signal}. Health is still failing."
-}
-
-poll_reply() {
-  local offset=0 polled messages text
-  [[ -f "${HEAL}/telegram.offset" ]] && offset="$(cat "${HEAL}/telegram.offset")"
-  polled="$(node "${ROOT}/scripts/vps/telegram-poll.mjs" "${offset}" 2>>"${ROOT}/logs/monitor.err.log" || true)"
-  [[ -z "${polled}" ]] && return 0
-  printf '%s' "$(printf '%s\n' "${polled}" | head -n 1)" > "${HEAL}/telegram.offset"
-  messages="$(printf '%s\n' "${polled}" | tail -n 1)"
-  [[ "${messages}" == "[]" || -z "${messages}" ]] && return 0
-  while IFS= read -r text; do
-    [[ -z "${text}" ]] && continue
-    if [[ -f "${HEAL}/open.json" ]] && printf '%s' "${text}" | grep -Eqi 'restart|fix|heap|stop|rollback|smoke|apply|yes|do it|edit|null pointer'; then
-      repair_reply "${text}"
-    else
-      answer_chat "${text}"
-    fi
-  done < <(node -e 'const m=JSON.parse(process.argv[1]); for (const item of m) process.stdout.write(String(item.text||"").replace(/\n/g," ")+"\n")' "${messages}")
-}
-
 while true; do
   refresh_skills
   signal="$(host_pressure)"
@@ -206,6 +143,5 @@ while true; do
   else
     HIGH=0
   fi
-  poll_reply
   sleep 15
 done

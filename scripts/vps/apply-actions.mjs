@@ -52,7 +52,8 @@ function heapVar(service) {
 const notes = [];
 for (const action of actions) {
   if (action.op === "restart") {
-    shop(["redeploy"]);
+    if (!action.service) throw new Error("restart needs a service name");
+    shop(["restart", action.service]);
     notes.push(`restarted ${action.service}`);
   } else if (action.op === "stop") {
     if (protectedServices.has(action.service) && !action.allowInfra) {
@@ -61,6 +62,7 @@ for (const action of actions) {
     shop(["stop", action.service]);
     notes.push(`stopped ${action.service}`);
   } else if (action.op === "heap") {
+    if (!action.service) throw new Error("heap needs a service name");
     const mb = Math.min(512, Math.max(64, Number(action.mb) || 160));
     const key = heapVar(action.service);
     const value = `-Xms48m -Xmx${mb}m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=96m -Xss256k`;
@@ -69,7 +71,7 @@ for (const action of actions) {
     const current = fs.existsSync(heaps) ? fs.readFileSync(heaps, "utf8").split("\n").filter((line) => line && !line.startsWith(`${key}=`)) : [];
     current.push(`${key}=${value}`);
     fs.writeFileSync(heaps, `${current.join("\n")}\n`);
-    shop(["redeploy"]);
+    shop(["restart", action.service]);
     notes.push(`set ${action.service} heap to ${mb} MB`);
   } else if (action.op === "logs") {
     notes.push(shop(["logs", action.service || "gateway-service"]).slice(-1500));

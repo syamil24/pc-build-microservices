@@ -1,0 +1,15 @@
+[Unit]
+Description=Apex Build Telegram chat agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=github-runner
+WorkingDirectory=/opt/actions-runner/_work/pc-build-microservices/pc-build-microservices
+ExecStart=/bin/bash /opt/actions-runner/_work/pc-build-microservices/pc-build-microservices/scripts/vps/chat-agent.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
