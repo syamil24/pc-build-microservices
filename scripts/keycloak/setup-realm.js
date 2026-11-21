@@ -66,10 +66,23 @@ async function ensureClientScopes(access) {
   const clients = await api(access, "GET", "/admin/realms/apex/clients?clientId=apex-web");
   const client = clients[0];
   if (!client) throw new Error("Client apex-web is missing");
-  const logoutUris = "http://localhost:5173/##http://localhost:5173/*##http://127.0.0.1:5173/##http://127.0.0.1:5173/*";
+  const redirectUris = [
+    "http://localhost:5173/*",
+    "http://127.0.0.1:5173/*",
+    "https://shop.syamilthoughts.com/*"
+  ];
+  const webOrigins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://shop.syamilthoughts.com"
+  ];
+  const logoutUris = "http://localhost:5173/##http://localhost:5173/*##http://127.0.0.1:5173/##http://127.0.0.1:5173/*##https://shop.syamilthoughts.com/##https://shop.syamilthoughts.com/*";
   client.attributes = client.attributes || {};
-  if (client.directAccessGrantsEnabled || client.attributes["post.logout.redirect.uris"] !== logoutUris) {
+  const same = (left, right) => Array.isArray(left) && left.length === right.length && right.every((item) => left.includes(item));
+  if (client.directAccessGrantsEnabled || client.attributes["post.logout.redirect.uris"] !== logoutUris || !same(client.redirectUris, redirectUris) || !same(client.webOrigins, webOrigins)) {
     client.directAccessGrantsEnabled = false;
+    client.redirectUris = redirectUris;
+    client.webOrigins = webOrigins;
     client.attributes["post.logout.redirect.uris"] = logoutUris;
     await api(access, "PUT", "/admin/realms/apex/clients/" + client.id, client);
   }

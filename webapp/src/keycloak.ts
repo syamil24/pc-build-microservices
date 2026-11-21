@@ -1,4 +1,4 @@
-const ISSUER = (import.meta.env.VITE_KEYCLOAK_ISSUER || "http://localhost:8180/realms/apex").replace(/\/$/, "");
+const ISSUER = (import.meta.env.VITE_KEYCLOAK_ISSUER || "https://shopauth.syamilthoughts.com/realms/apex").replace(/\/$/, "");
 const CLIENT = import.meta.env.VITE_KEYCLOAK_CLIENT || "apex-web";
 
 function base64url(bytes: Uint8Array) {
