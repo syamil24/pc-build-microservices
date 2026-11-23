@@ -8,7 +8,9 @@ from langchain.agents.middleware import AgentMiddleware, ModelRequest
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from .actions import USER_MESSAGE, emergency_fix, heal_dir, operate_service, root_dir
+from .history import window
 from .observe import observe_host, observe_service
+from .shell import read_file, run_command
 
 SYSTEM = """You are texting on Telegram as the person who watches this Apex Build VPS.
 Reply in casual plain text, a few sentences. Money in this shop is integer cents.
@@ -16,7 +18,9 @@ Bounded contexts stay separate: do not invent a call from one service into anoth
 Call a tool before you state a live number. Do not claim a restart, a config change, or a pull request until the tool returns.
 observe_host reads the machine. observe_service reads one shop service, and payment means the three payment jars.
 operate_service restarts or changes only the named jars. emergency_fix edits Java and opens a heal pull request, and only when the user asked for a code change, a pull request, or an emergency.
-Installing software is refused. There is no shell. If a tool cannot see it, say you cannot see it from here.
+run_command runs one bash line in the repository root for anything the named tools cannot see: git, ports, files, processes. It refuses a command that changes the machine unless the user's own message asked to run it, and it never pipes a download into a shell.
+read_file reads one repository file when a question needs its exact content.
+Answer questions outside this shop from your own knowledge when no live number is involved, and say it is your own reading when the shop has no data for it. If a tool cannot see it, say you cannot see it from here.
 """
 
 
@@ -31,12 +35,15 @@ def observe_service_tool(name: str) -> str:
 
 
 class TrimHistory(AgentMiddleware):
-    """Keep the system text plus the latest 40 messages on each model call."""
+    """Keep the system text plus a repaired latest 40 messages on each model
+    call. The repair drops turns a provider rejects: an orphan tool result, a
+    tool call with no result, and anything before the first user turn."""
 
     def _trimmed(self, request: ModelRequest) -> ModelRequest:
-        if len(request.messages) > 40:
-            return request.override(messages=request.messages[-40:])
-        return request
+        messages = window(request.messages, 40)
+        if messages == request.messages:
+            return request
+        return request.override(messages=messages)
 
     def wrap_model_call(self, request: ModelRequest, handler):
         return handler(self._trimmed(request))
@@ -57,7 +64,7 @@ def build_agent():
         checkpointer.setup()
     agent = create_agent(
         model,
-        [observe_host_tool, observe_service_tool, operate_service, emergency_fix],
+        [observe_host_tool, observe_service_tool, operate_service, emergency_fix, run_command, read_file],
         system_prompt=SYSTEM,
         checkpointer=checkpointer,
         middleware=[TrimHistory()],
