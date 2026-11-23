@@ -110,4 +110,15 @@ export type Platform = {
   }>;
 };
 
+export type LogFileInfo = { name: string; sizeBytes: number; lastModified: string };
+
+export type LogTail = {
+  file: string;
+  lines: string[];
+  nextOffset: number;
+  sizeBytes: number;
+  truncated: boolean;
+  reset: boolean;
+};
+
 export type Session = { accessToken: string; refreshToken: string; email: string; role: string };

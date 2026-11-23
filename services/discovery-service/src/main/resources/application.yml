@@ -17,3 +17,4 @@ eureka:
 
 apex:
   platform-poll-ms: ${PLATFORM_POLL_MS:10000}
+  logs-dir: ${LOG_DIR:logs}

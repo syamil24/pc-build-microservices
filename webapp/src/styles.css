@@ -858,6 +858,32 @@
   .split { grid-template-columns: 1fr; }
   .service { margin-block-end: 1rem; }
 
+  .log-panel { padding: 0.75rem; }
+  .log-bar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; margin-block-end: 0.5rem; }
+  .log-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; color: var(--muted); }
+  .log-field select, .log-field input { min-inline-size: 0; }
+  .log-field select { inline-size: auto; }
+  .log-search { flex: 1; min-inline-size: 10rem; }
+  .log-search input { inline-size: 100%; }
+  .log-check { display: flex; gap: 0.35rem; align-items: center; font-size: 0.75rem; color: var(--muted); padding-block-end: 0.45rem; }
+  .log-status { margin: 0 0 0.5rem; font-size: 0.75rem; }
+  .log-view {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    background: oklch(0.18 0.015 264);
+    font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    block-size: min(34rem, 70dvh);
+    overflow: auto;
+    overscroll-behavior: contain;
+    tab-size: 4;
+  }
+  .log-row { padding: 0 0.65rem; white-space: pre-wrap; overflow-wrap: anywhere; color: oklch(0.85 0.01 256); }
+  .log-row.lvl-warn { color: oklch(0.85 0.13 90); }
+  .log-row.lvl-error { color: var(--danger); }
+  .log-empty { padding: 1rem; }
+
   .table-wrap {
     overflow: auto;
     max-inline-size: 100%;

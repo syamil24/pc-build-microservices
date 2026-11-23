@@ -13,6 +13,7 @@ export default function AdminLayout() {
           <NavLink to="/admin" end>Products</NavLink>
           <NavLink to="/admin/reports">Sales report</NavLink>
           <NavLink to="/admin/platform">Live ops</NavLink>
+          <NavLink to="/admin/logs">Live logs</NavLink>
           <NavLink to="/">Shop</NavLink>
         </nav>
         <Outlet />

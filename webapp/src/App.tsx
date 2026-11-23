@@ -19,6 +19,7 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import ProductsPage from "./pages/admin/ProductsPage";
 import ProductFormPage from "./pages/admin/ProductFormPage";
 import ReportsPage from "./pages/admin/ReportsPage";
+import LogsPage from "./pages/admin/LogsPage";
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="products/:id" element={<ProductFormPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="platform" element={<PlatformPage />} />
+          <Route path="logs" element={<LogsPage />} />
         </Route>
       </Route>
     </Routes>
