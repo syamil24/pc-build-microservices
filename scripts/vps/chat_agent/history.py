@@ -4,13 +4,17 @@ repaired window: orphan tool results dropped, tool calls without a result
 dropped or stripped, and anything before the first user turn removed."""
 
 
+_ROLE_ALIASES = {"human": "user", "assistant": "ai"}
+
+
 def _role(message):
     if hasattr(message, "type"):
-        return message.type
-    if isinstance(message, dict):
+        role = message.type
+    elif isinstance(message, dict):
         role = message.get("type") or message.get("role") or ""
-        return {"assistant": "ai"}.get(role, role)
-    return ""
+    else:
+        return ""
+    return _ROLE_ALIASES.get(role, role)
 
 
 def _call_id_of(call):
